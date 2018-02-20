@@ -6,6 +6,9 @@
 # section 4: analyze I20, I25, R07, and R10
 # section 5: SNP analysis
 
+## Load libraries ##
+#install.packages("survival")
+library(survival)
 
 ## Identify the data path
 path <- "/Users/andreaganna/Documents/Work/Post_doc/jiwoo/"
@@ -59,6 +62,13 @@ total$mi_date <- as.Date(total$mi_date, "%Y-%m-%d")
 # make icd10_date as a data rather than a string
 total$icd10_date <- as.Date(total$icd10_date, "%Y-%m-%d")
 
+# Create end-of-follow up analysis, which is or 2015-03-31 or MI or death, whichever happens first
+total$endfollowup <- ifelse(!is.na(total$death_date) & is.na(total$mi_date),as.Date(total$death_date, "%Y-%m-%d"),
+					 ifelse(!is.na(total$mi_date),as.Date(total$mi_date, "%Y-%m-%d"),as.Date("2015-03-01", "%Y-%m-%d")))
+class(total$endfollowup)<- "Date"
+
+# Create enter-of-follow up, which is as.Date("1998-01-01")
+total$startfollowup <- as.Date("1998-01-01", "%Y-%m-%d")
 
 nrow(total)
 #2864652 rows
@@ -79,12 +89,12 @@ length(unique(total.new$eid))
 #498828 individuals
 length(unique(total.new$icd10))
 #1393 ICD codes
-length(unique(total[which(!is.na(total$mi_date)), ]$eid))
+length(unique(total.new[which(!is.na(total.new$mi_date)), ]$eid))
 #17959 individuals with MI
 
 
 # remove individuals with myocardial infarction outside of timeframe
-to_remove <- total.new$eid[total.new$mi_date > as.Date("2015-03-01", "%Y-%m-%d") | total.new$mi_date < as.Date("1998-01-01", "%Y-%m-%d")]
+to_remove <- total.new$eid[total.new$mi_date > as.Date("2015-03-01", "%Y-%m-%d") | total.new$mi_date < total.new$startfollowup]
 to_remove <- unique(to_remove[!is.na(to_remove)])
 
 total.new = total.new[!total.new$eid %in% to_remove,]
@@ -94,21 +104,22 @@ length(unique(total.new$eid))
 #495453 individuals
 length(unique(total.new$icd10))
 #1393 ICD codes
-length(unique(total[which(!is.na(total$mi_date)), ]$eid))
-#17959 individuals with MI
+length(unique(total.new[which(!is.na(total.new$mi_date)), ]$eid))
+#14584 individuals with MI
 
-# set to missing ICD10 codes/dates outside of timeframe or that are within 7 days from MI date
-total.new$icd10[total.new$icd10_date > as.Date("2015-03-01", "%Y-%m-%d") | total.new$icd10_date < as.Date("1998-01-01", "%Y-%m-%d")] <- NA
-total.new$icd10_date[total.new$icd10_date > as.Date("2015-03-01", "%Y-%m-%d") | total.new$icd10_date < as.Date("1998-01-01", "%Y-%m-%d")] <- NA
+# set to missing ICD10 codes/dates outside of timeframe or that are before 7 days from MI date
+total.new$icd10[total.new$icd10_date > as.Date("2015-03-01", "%Y-%m-%d") | total.new$icd10_date < total.new$startfollowup] <- NA
+total.new$icd10_date[total.new$icd10_date > as.Date("2015-03-01", "%Y-%m-%d") | total.new$icd10_date < total.new$startfollowup] <- NA
 total.new$icd10[(total.new$mi_date - total.new$icd10_date) < 8] <- NA
+total.new$icd10_date[(total.new$mi_date - total.new$icd10_date) < 8] <- NA
 nrow(total.new)
-#2728566 rows
+#2816591 rows
 length(unique(total.new$eid))
-#392743 individuals
+#495453 individuals
 length(unique(total.new$icd10))
-#1384 ICD codes
-length(unique(total[which(!is.na(total$mi_date)), ]$eid))
-#17620 individuals with MI
+#1385 ICD codes
+length(unique(total.new[which(!is.na(total.new$mi_date)), ]$eid))
+#14584 individuals with MI
 
 # remove individuals with I25 before MI
 # LET'S CHECK WITH ERIK IF THIS EXCLUSION IS NEED IT
@@ -116,79 +127,95 @@ to_remove <- total.new$eid[total.new$icd10 == "I25"]
 to_remove <- unique(to_remove[!is.na(to_remove)])
 total.new = total.new[!total.new$eid %in% to_remove, ]
 nrow(total.new)
-#2702582 rows
+#2644684 rows
 length(unique(total.new$eid))
-#391918 individuals
+#483171 individuals
 length(unique(total.new$icd10))
-#1383 ICD codes
-length(unique(total[which(total$mi_date != "NA"), ]$eid))
-#17620 individuals with MI
+#1375 ICD codes
+length(unique(total.new[which(!is.na(total.new$mi_date)), ]$eid))
+#12765 individuals with MI
 
-# make binary variable for myocardial infarction (e.g., 0 is no MI and 1 is MI)
-total.new.mi = total.new[which(total.new$mi_date != 'NA'), ]
-total.new.no.mi = total.new[which(total.new$mi_date == 'NA'), ]
-total.new.mi = cbind(total.new.mi, "mi" = "1")
-total.new.no.mi = cbind(total.new.no.mi, "mi" = "0")
-total.new = rbind(total.new.mi, total.new.no.mi)
-rm(total.new.mi, total.new.no.mi)
+# Keep only unique individuals with MI
+total.newT <- total.new[!is.na(total.new$mi_date),]
+total.newMI <- total.newT[!duplicated(total.newT$eid),c("eid","mi_date")]
 
-# exclude ICD10 codes after first diagnosis
-total.new = total.new[order(total.new$icd10), ]
-total.new = total.new[order(total.new$eid), ]
-total.new = total.new[!duplicated(total.new[, c("eid", "icd10")], fromLast = FALSE), ]
-nrow(total.new)
-#1327144 rows
-length(unique(total.new$eid))
-#391918 individuals
-length(unique(total.new$icd10))
-#1383 ICD codes
-length(unique(total[which(total$mi_date != "NA"), ]$eid))
-#17620 individuals with MI
+# Keep only unique individuals (and a subset of variables from total.new)
+total.newU <- total.new[!duplicated(total.new$eid),c("eid","sex","age","death","death_date","endfollowup","startfollowup")]
 
 # loop across ICD10 codes associated with MI and n > 10
-#install.packages("survival")
-library(survival)
-icd.mi <- total.new$icd10[total.new$mi == 1]
+icd.mi <- total.new$icd10[!is.na(total.new$mi_date)]
 icd.all <- names(table(icd.mi))[table(icd.mi) > 10]
 res <- NULL
 for (i in 1:length(icd.all)) {
-	id.icd = total.new$eid[total.new$icd10 == icd.all[i]]
-	total.new$pred <- ifelse(total.new$eid %in% id.icd, 1, 0)
 
-	# group 1 is icd and mi
-	# group 2 is icd and no mi
-	# group 3 is no icd and mi
-	# group 4 is no icd and no mi
 
-	data1 = subset(total.new, pred == 1 & mi == 1)
-	data1$time1 = as.Date(data1$icd10_date) - as.Date("1998-01-01")
-	data1$time2 = as.Date(data1$mi_date) - as.Date("1998-01-01")
+	  # Keep unique record for the comorbity examined
+      total.newT <- total.new[total.new$icd10==icd.all[i] & !is.na(total.new$icd10),]
+ 
+      # Sort and keep the first event for each individual
+      total.new.sorted <- total.newT[order(total.newT$eid,as.numeric(total.newT$icd10_date)),]
+      total.new.sortedU <- total.new.sorted[!duplicated(total.new.sorted$eid),c("eid","icd10_date")]
+      
+      # Merge the ICD-only dataset with the main dataset
+      temp1 <- merge(total.newU,total.new.sortedU,all.x=T,by="eid")
 
-	data2 = subset(total.new, pred == 1 & mi == 0)
-	data2$time1 = 0
-	data2$time2 = as.Date(data2$icd10_date) - as.Date("1998-01-01")
+      # Now add the MI-only dataset
+      total.comorb <- merge(temp1,total.newMI,all.x=T,by="eid")
 
-	data3 = subset(total.new, pred == 0 & mi == 1)
-	data3$time1 = 0
-	data3$time2 = as.Date(data3$mi_date) - as.Date("1998-01-01")
+      # Assign pred and MI
+      total.comorb$pred <- ifelse(is.na(total.comorb$icd10_date),0,1)
+      total.comorb$mi <- ifelse(is.na(total.comorb$mi_date),0,1)
 
-	data4 = subset(total.new, pred == 0 & mi == 0)
-	data4$time1 = 0
-	data4$time2 = as.Date("2015-03-31") - as.Date("1998-01-01")
+      # If you have the ICD you contribute as unexposed (trt=0) from when you enter to when you get the ICD
+	  data1 <- subset(total.comorb,pred==1)
+      data1$tstart <- 0
+      data1$tstop <- as.numeric(data1$icd10_date-data1$startfollowup)
+      data1$outP <- 0
+      data1$trt <- 0
+      
+      # Then ... (here we duplicate the rows)
+      # If you have the ICD, you contribute as exposed (trt=1) from when you get the ICD untill end of follow-up (which can be death/MI/of 2015)
+      data2 <- subset(total.comorb,pred==1)
+      data2$tstart <- as.numeric(data2$icd10_date-data2$startfollowup)
+      data2$tstop <- as.numeric(data2$endfollowup-data2$startfollowup)
+      data2$outP <- data2$mi
+      data2$trt <- 1
+      
+      # If you don't have the ICD, but you have MI you contribute as unexposed (trt=0) from when you enter until the MI date
+      data3 <- subset(total.comorb,pred==0 & mi==1)
+      data3$tstart <- 0
+      data3$tstop <- as.numeric(data3$endfollowup-data3$startfollowup)
+      data3$outP <- 1
+      data3$trt <- 0
 
-	data.all = rbind(data1, data2, data3, data4)
-	data.all = data.all[data.all$time1 < data.all$time2,]
+      dataF <- rbind(data1,data2,data3)
 
-	mod <- coxph(Surv(as.numeric(time1), as.numeric(time2), as.numeric(as.character(mi))) ~ as.numeric(age) + as.numeric(pred) + as.numeric(sex), data = data.all)
+      # If you don't have the ICD or MI you contribute as unexposed (trt=0) from when you enter untill you exit the study
+      otherdata <- subset(total.comorb,pred!=1 & mi!=1)
+      
+      otherdata$tstart <- 0
+      otherdata$tstop <- as.numeric(otherdata$endfollowup-otherdata$startfollowup)
+      otherdata$outP <- 0
+      otherdata$trt <- 0
+      
+      findata <- rbind(dataF,otherdata)
 
-	res <- rbind(res, coef(summary(mod))[2, c(1, 4)])
+      # This is because there is one individuals where tstart=tstop
+      findata <- findata[findata$tstart<findata$tstop,]
+
+
+      mod <- coxph(Surv(tstart, tstop, outP) ~ age + trt + sex, data= findata)
+
+
+	  res <- rbind(res, coef(summary(mod))[2, c(1, 4)])
+
 	print(i)
 }
 rownames(res) <- icd.all
 resdf = as.data.frame(res)
 resdf = cbind(icd10 = rownames(resdf), resdf)
 rownames(resdf) <- 1:nrow(resdf)
-write.table(resdf, file = 'survivalanalysis.csv', sep = "\t", row.names = FALSE, col.names = TRUE)
+write.table(resdf, file = paste0(path,'survivalanalysis.tsv'), sep = "\t", row.names = FALSE, col.names = TRUE, quote=F)
 
 # filter data based on results from survival analysis
 resdf=read.table(file = 'survivalanalysis.csv', sep = "", header = TRUE)
