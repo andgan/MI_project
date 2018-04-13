@@ -15,7 +15,7 @@ source(paste0(path,"MI_project/utils.R"))
 # Sensitivity analysis - keep only ICD codes after baseline
 ###########################################################################################################
 
-# Load data
+# Load data from utils.R
 load_data(path)
 
 # make mi_date as a date rather than a string
@@ -69,6 +69,7 @@ length(unique(total.new[which(!is.na(total.new$mi_date)), ]$eid))
 # set to missing ICD10 codes/dates outside of timeframe or less than 7 days from MI date
 total.new$icd10[total.new$icd10_date > as.Date("2015-03-01", "%Y-%m-%d") | total.new$icd10_date < total.new$startfollowup] <- NA
 total.new$icd10_date[total.new$icd10_date > as.Date("2015-03-01", "%Y-%m-%d") | total.new$icd10_date < total.new$startfollowup] <- NA
+# This is different between pre and post analysis
 total.new$icd10[(total.new$mi_date - total.new$icd10_date) < 8] <- NA
 total.new$icd10_date[(total.new$mi_date - total.new$icd10_date) < 8] <- NA
 nrow(total.new)
@@ -233,6 +234,15 @@ resdf$logp <- -log10(resdf$p_main)
 resdf$logp[resdf$logp=="Inf"] <- 300
 
 ggplot(resdf, aes(ICD10,logp)) + geom_point(size = 1) + theme(axis.ticks.x = element_blank(), axis.text.x = element_blank(), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black")) + geom_hline(yintercept = -log10(0.05 / length(icd.all)), size = 1.5, color = "red") + labs(x = "ICD Code", y = "-log10 Transformed P-Value") + geom_text(aes(label = resdf$ICD10), hjust=-0.4, vjust=0,size=3) + expand_limits(y = 200)
+
+## PLOT INTERACTION BETWEEN PRS and ICD for association with MI
+resdf$p_interaction <- 2*pnorm(-abs(resdf$z_interaction))
+resdf$logp <- -log10(resdf$p_interaction)
+resdf$logp[resdf$logp=="Inf"] <- 300
+
+ggplot(resdf, aes(ICD10,logp)) + geom_point(size = 1) + theme(axis.ticks.x = element_blank(), axis.text.x = element_blank(), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black")) + geom_hline(yintercept = -log10(0.05 / length(icd.all)), size = 1.5, color = "red") + labs(x = "ICD Code", y = "-log10 Transformed P-Value") + geom_text(aes(label = resdf$ICD10), hjust=-0.4, vjust=0,size=3) 
+
+
 
 # top five ICD10 codes are I20, R07, I50, I24, and J22
 resdf[which(resdf$logp>quantile(resdf$logp,0.95)),]

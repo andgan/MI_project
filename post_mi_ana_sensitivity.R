@@ -251,3 +251,4 @@ plot_icd_mi_prs("I20",total.new,total.newMI)
 #### PLOT ASSOCIATION BETWEEN I20 and MI as function of the PRS ####
 plot_icd_mi_prs_int("I20",total.new,total.newMI)
 
+

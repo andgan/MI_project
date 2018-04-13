@@ -216,6 +216,9 @@ write.table(resdf, file = paste0(path,'survivalanalysis_post.tsv'), sep = "\t", 
 
 # rm(data1, data2, data3, dataF, findata, i, icd.all, icd.mi, mod, otherdata, res, temp1, to_remove, total.comorb, total.new.sorted, total.new.sortedU, total.newMI, total.newT, total.newU)
 
+resdf <- read.table(file = paste0(path,'survivalanalysis_post.tsv'), sep = "\t", header = TRUE)
+
+
 
 # PLOT ASSOCIATION BETWEEN MI AND ICD-CODES FOLLOWING MI
 resdf$p_main <- 2*pnorm(-abs(resdf$z_main))
@@ -234,6 +237,15 @@ resdfs$p_just_mi <- 2*pnorm(-abs(resdfs$z_just_mi))
 resdfs$logp <- -log10(resdfs$p_just_mi)
 
 ggplot(resdfs, aes(ICD10,logp)) + geom_point(size = 1) + theme(axis.ticks.x = element_blank(), axis.text.x = element_blank(), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black")) + geom_hline(yintercept = -log10(0.05 / length(icd.all)), size = 1.5, color = "red") + labs(x = "ICD Code", y = "-log10 P for association between PRS and ICD after MI") + geom_text(aes(label = resdfs$ICD10), hjust=-0.4, vjust=0,size=3)
+
+
+## PLOT INTERACTION BETWEEN PRS and ICD for association with MI
+resdf$p_interaction <- 2*pnorm(-abs(resdf$z_interaction))
+resdf$logp <- -log10(resdf$p_interaction)
+resdf$logp[resdf$logp=="Inf"] <- 300
+
+ggplot(resdf, aes(ICD10,logp)) + geom_point(size = 1) + theme(axis.ticks.x = element_blank(), axis.text.x = element_blank(), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black")) + geom_hline(yintercept = -log10(0.05 / length(icd.all)), size = 1.5, color = "red") + labs(x = "ICD Code", y = "-log10 Transformed P-Value") + geom_text(aes(label = resdf$ICD10), hjust=-0.4, vjust=0,size=3) 
+
 
 
 ## PLOT AVERAGE PRS FOR MI, NO MI, ICD, NO ICD
