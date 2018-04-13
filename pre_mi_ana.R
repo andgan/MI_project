@@ -14,12 +14,8 @@ source(paste0(path,"MI_project/utils.R"))
 #  Filter data - Goal: Find association between ICD codes and MI - check how this relates to the PRS
 ########################################################################################################
 
-# get data
-total1 = read.table(file = paste0(path,'hesin_registry_assess_cent_all_v2.csv'), sep = '\t', header = TRUE, stringsAsFactors = FALSE)
-
-# polygenic risk score
-prs = read.table(file = paste0(path,'prs_cad_ukbb.tsv'), sep = '\t', header = TRUE, stringsAsFactors = FALSE, na.strings = "")
-total = merge(total1, prs, by.x="eid", by.y="ID", all.x=TRUE)
+# Load data
+load_data(path)
 
 # make mi_date as a date rather than a string
 total$mi_date <- as.Date(total$mi_date, "%Y-%m-%d")

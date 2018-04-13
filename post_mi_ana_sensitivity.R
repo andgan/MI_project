@@ -14,12 +14,8 @@ source(paste0(path,"MI_project/utils.R"))
 #  Filter data - Goal: Find association between MI and ICD codes after MI and the relationship with PRS
 ########################################################################################################
 
-# get data
-total1 = read.table(file = paste0(path,'hesin_registry_assess_cent_all_v2.csv'), sep = '\t', header = TRUE, stringsAsFactors = FALSE)
-
-# polygenic risk score
-prs = read.table(file = paste0(path,'prs_cad_ukbb.tsv'), sep = '\t', header = TRUE, stringsAsFactors = FALSE, na.strings = "")
-total = merge(total1, prs, by.x="eid", by.y="ID", all.x=TRUE)
+# Load data
+load_data(path)
 
 # make mi_date as a date rather than a string
 total$mi_date <- as.Date(total$mi_date, "%Y-%m-%d")
@@ -104,7 +100,7 @@ total.newT <- total.new[!is.na(total.new$mi_date), ]
 total.newMI <- total.newT[!duplicated(total.newT$eid), c("eid","mi_date")]
 
 # keep only unique individuals (and a subset of variables from total.new)
-total.newU <- total.new[!duplicated(total.new$eid), c("eid", "sex", "age", "death", "death_date", "endfollowup", "startfollowup","PRS_0.5")]
+total.newU <- total.new[!duplicated(total.new$eid), c("eid", "sex", "age", "death", "death_date", "endfollowup", "startfollowup","PRS_0.5","sbp","smoke","bmi")]
 
 
 ########################################################################
@@ -186,6 +182,14 @@ for (i in 1:length(icd.all)) {
     NA
     })
     
+    # Adjusting for risk factors
+    mod3 <- tryCatch({
+      coxph(Surv(tstart, tstop, outP) ~ age + trt + sex + sbp + smoke + bmi, data = findata)
+    }, error = function(w) {
+      NA
+    })
+    
+    
     # Testing the interaction between ICD code and PRS
     mod1 <- tryCatch({
     coxph(Surv(tstart, tstop, outP) ~ age + trt*PRS_0.5  + sex, data = findata)
@@ -205,7 +209,7 @@ for (i in 1:length(icd.all)) {
     
     if(is.na(mod))
     {next}
-    else{res <- rbind(res, c(coef(summary(mod))[2, c(1, 4)],coef(summary(mod1))[5, c(1, 4)],coef(summary(mod2))[2, c(1, 4)]))}
+    else{res <- rbind(res, c(coef(summary(mod))[2, c(1, 4)],coef(summary(mod1))[5, c(1, 4)],coef(summary(mod2))[2, c(1, 4)],coef(summary(mod3))[2, c(1, 4)]))}
 
     icd.final <- c(icd.final, icd.all[i])
     print(i)
@@ -215,7 +219,7 @@ rownames(res) <- icd.final
 resdf = as.data.frame(res)
 resdf = cbind(icd10 = rownames(resdf), resdf)
 rownames(resdf) <- 1:nrow(resdf)
-colnames(resdf) <- c("ICD10","beta_main","z_main","beta_interaction","z_interaction","beta_just_mi","z_just_mi")
+colnames(resdf) <- c("ICD10","beta_main","z_main","beta_interaction","z_interaction","beta_just_mi","z_just_mi","beta_main_adj","z_main_adj")
 write.table(resdf, file = paste0(path,'survivalanalysis_post_sensitivity.tsv'), sep = "\t", row.names = FALSE, col.names = TRUE, quote=F)
 
 # rm(data1, data2, data3, dataF, findata, i, icd.all, icd.mi, mod, otherdata, res, temp1, to_remove, total.comorb, total.new.sorted, total.new.sortedU, total.newMI, total.newT, total.newU)

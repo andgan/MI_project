@@ -1,6 +1,28 @@
 ### FILE CONTAINING FUNCTIONS TO USE IN THE ANALYSIS ###
 
+## THIS FUNCTION LOAD THE DATA, MERGE AND RETURN A DATASET FOR ANALYSES
 
+
+load_data <- function(path) {
+  library(data.table)
+  # get data
+  total1 = fread(file = paste0(path,'hesin_registry_assess_cent_all_v2.csv'), sep = '\t', header = TRUE, stringsAsFactors = FALSE)
+  
+  # polygenic risk score
+  prs = fread(file = paste0(path,'prs_cad_ukbb.tsv'), sep = '\t', header = TRUE, stringsAsFactors = FALSE, na.strings = "")
+  
+  # SNP matrix, genome-wide significant SNPs for MI
+  snp_mat <- fread(file=paste0(path,'variant_gw_cad_allT.tsv'), sep = '\t', header = TRUE, stringsAsFactors = FALSE)
+
+  # Merge phenotypes, prs and matrix of SNPs
+  totalo = merge(total1, prs, by.x="eid", by.y="ID", all.x=TRUE)
+  total = merge(totalo, snp_mat, by="eid", all.x=TRUE)
+  
+  return(data.frame(total))
+}
+     
+        
+        
 ## PLOT AVERAGE PRS FOR MI, NO MI, ICD, NO ICD
 plot_icd_mi_prs <- function(icdcode, alldata, allmi)
 {
