@@ -15,7 +15,7 @@ source(paste0(path,"MI_project/utils.R"))
 ########################################################################################################
 
 # Load data
-load_data(path)
+total <- load_data(path)
 
 # make mi_date as a date rather than a string
 total$mi_date <- as.Date(total$mi_date, "%Y-%m-%d")
@@ -212,44 +212,22 @@ rownames(resdf) <- 1:nrow(resdf)
 colnames(resdf) <- c("ICD10","beta_main","z_main","beta_interaction","z_interaction","beta_just_mi","z_just_mi")
 write.table(resdf, file = paste0(path,'survivalanalysis_pre.tsv'), sep = "\t", row.names = FALSE, col.names = TRUE, quote=F)
 
-# rm(data1, data2, data3, dataF, findata, i, icd.all, icd.mi, mod, otherdata, res, temp1, to_remove, total.comorb, total.new.sorted, total.new.sortedU, total.newMI, total.newT, total.newU)
-
-resdf <- read.table(file = paste0(path,'survivalanalysis_pre.tsv'), sep = "\t", header = TRUE)
 
 
-resdf$p_main <- 2*pnorm(-abs(resdf$z_main))
-resdf$logp <- -log10(resdf$p_main)
-resdf$logp[resdf$logp=="Inf"] <- 300
+## PLOT INTERACTION BETWEEN PRS and ICD for association with MI ##
+resdf <- read.table(file = paste0(path,'survivalanalysis_pre.tsv'), sep = "\t", header = TRUE, stringsAsFactors = F)
+icd.sel <- resdf$ICD10[2*pnorm(-abs(resdf$z_main)) < (0.05/nrow(resdf))]
+resdfS <- resdf[resdf$ICD10 %in% icd.sel, ]
+resdfS$p_interaction <- 2*pnorm(-abs(resdfS$z_interaction))
+resdfS$logp <- -log10(resdfS$p_interaction)
+resdfS$ICD10label <- resdfS$ICD10
+resdfS$ICD10label[resdfS$logp < -log10(0.05 / length(icd.sel))] <- ""
+ggplot(resdfS, aes(ICD10,logp)) + 
+  geom_point() + 
+  theme(axis.ticks.x = element_blank(), axis.text.x = element_blank(), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black")) + geom_hline(yintercept = -log10(0.05 / length(icd.all)), size = 1.5, color = "red") + 
+  labs(x = "ICD Code", y = "-log10 Transformed P-Value") + 
+  geom_text_repel(aes(label = resdfS$ICD10label),size=3,segment.alpha=0.5)
 
-ggplot(resdf, aes(ICD10,logp)) + geom_point(size = 1) + theme(axis.ticks.x = element_blank(), axis.text.x = element_blank(), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black")) + geom_hline(yintercept = -log10(0.05 / length(icd.all)), size = 1.5, color = "red") + labs(x = "ICD Code", y = "-log10 Transformed P-Value") + geom_text(aes(label = resdf$ICD10), hjust=-0.4, vjust=0,size=3) + expand_limits(y = 310)
-
-# top five ICD10 codes are I20, R07, I50, I24, and J22
-resdf[which(resdf$logp>quantile(resdf$logp,0.95)),]
-
-
-# PLOT ASSOCIATION BETWEEN PRS AND EVENT BEFORE MI
-resdfs <- resdf[resdf$p_main < 0.05/nrow(resdf),]
-resdfs$p_just_mi <- 2*pnorm(-abs(resdfs$z_just_mi))
-resdfs$logp <- -log10(resdfs$p_just_mi)
-
-ggplot(resdfs, aes(ICD10,logp)) + geom_point(size = 1) + theme(axis.ticks.x = element_blank(), axis.text.x = element_blank(), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black")) + geom_hline(yintercept = -log10(0.05 / length(icd.all)), size = 1.5, color = "red") + labs(x = "ICD Code", y = "-log10 P for association between PRS and ICD after MI") + geom_text(aes(label = resdfs$ICD10), hjust=-0.4, vjust=0,size=3)
-
-
-## PLOT INTERACTION BETWEEN PRS and ICD for association with MI
-resdf$p_interaction <- 2*pnorm(-abs(resdf$z_interaction))
-resdf$logp <- -log10(resdf$p_interaction)
-resdf$logp[resdf$logp=="Inf"] <- 300
-
-ggplot(resdf, aes(ICD10,logp)) + geom_point(size = 1) + theme(axis.ticks.x = element_blank(), axis.text.x = element_blank(), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black")) + geom_hline(yintercept = -log10(0.05 / length(icd.all)), size = 1.5, color = "red") + labs(x = "ICD Code", y = "-log10 Transformed P-Value") + geom_text(aes(label = resdf$ICD10), hjust=-0.4, vjust=0,size=3) 
-
-
-
-## PLOT AVERAGE PRS FOR MI, NO MI, ICD, NO ICD
-plot_icd_mi_prs("I20",total.new,total.newMI)
-
-
-#### PLOT ASSOCIATION BETWEEN I20 and MI as function of the PRS ####
-plot_icd_mi_prs_int("I20",total.new,total.newMI)
 
 
 

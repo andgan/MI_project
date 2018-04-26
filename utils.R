@@ -24,7 +24,7 @@ load_data <- function(path) {
         
         
 ## PLOT AVERAGE PRS FOR MI, NO MI, ICD, NO ICD
-plot_icd_mi_prs <- function(icdcode, alldata, allmi)
+plot_icd_mi_prs <- function(icdcode, alldata, allmi,grouptype="MI")
 {
   
   alldataU <- alldata[!duplicated( alldata$eid), c("eid", "sex", "age", "death", "death_date", "endfollowup", "startfollowup","PRS_0.5")]
@@ -45,12 +45,19 @@ plot_icd_mi_prs <- function(icdcode, alldata, allmi)
   no.icd.mi <- total.comorb[which(total.comorb$pred == 0 & total.comorb$mi == 1),]
   no.icd.no.mi <- total.comorb[which(total.comorb$pred == 0 & total.comorb$mi == 0),]
   
-  df <- data.frame(prs_mean=c(mean(icd.mi$PRS_0.5,na.rm=T),mean(icd.no.mi$PRS_0.5,na.rm=T),mean(no.icd.mi$PRS_0.5,na.rm=T),mean(no.icd.no.mi$PRS_0.5,na.rm=T)), prs_se=c(sd(icd.mi$PRS_0.5,na.rm=T)/sqrt(nrow(icd.mi)),sd(icd.no.mi$PRS_0.5,na.rm=T)/sqrt(nrow(icd.no.mi)),sd(no.icd.mi$PRS_0.5,na.rm=T)/sqrt(nrow(no.icd.mi)),sd(no.icd.no.mi$PRS_0.5,na.rm=T)/sqrt(nrow(no.icd.no.mi))),mi=c("MI","NO MI","MI","NO MI"),ICD=c(icdcode,icdcode,paste("NO",icdcode),paste("NO",icdcode)))
+  df <- data.frame(prs_mean=c(mean(icd.mi$PRS_0.5,na.rm=T),mean(icd.no.mi$PRS_0.5,na.rm=T),mean(no.icd.mi$PRS_0.5,na.rm=T),mean(no.icd.no.mi$PRS_0.5,na.rm=T)), prs_se=c(sd(icd.mi$PRS_0.5,na.rm=T)/sqrt(nrow(icd.mi)),sd(icd.no.mi$PRS_0.5,na.rm=T)/sqrt(nrow(icd.no.mi)),sd(no.icd.mi$PRS_0.5,na.rm=T)/sqrt(nrow(no.icd.mi)),sd(no.icd.no.mi$PRS_0.5,na.rm=T)/sqrt(nrow(no.icd.no.mi))),mi=c("MI","NO MI","MI","NO MI"),ICD=c(icdcode,icdcode,paste(".NO",icdcode),paste(".NO",icdcode)))
   df$CIU <- df$prs_mean + 1.96*df$prs_se
   df$CID <- df$prs_mean - 1.96*df$prs_se
   
-  ggplot(aes(y=prs_mean,x=mi), data=df) + geom_bar(aes(fill=ICD), stat="identity", position="dodge") + geom_errorbar(width=0.2,aes(ymin=CID, ymax=CIU, fill=ICD),position=position_dodge(.9) ) + theme_bw()
-  
+  if(grouptype=="ICD")
+  {
+    ggplot(aes(y=prs_mean,x=mi), data=df) + geom_bar(aes(fill=ICD), stat="identity", position="dodge") + geom_errorbar(width=0.2,aes(ymin=CID, ymax=CIU, fill=ICD),position=position_dodge(.9) ) + theme_bw() + ylab("Mean polygenic score for MI")
+  }
+  else if(grouptype=="MI")
+  {
+    ggplot(aes(y=prs_mean,x=ICD), data=df) + geom_bar(aes(fill=mi), stat="identity", position="dodge") + geom_errorbar(width=0.2,aes(ymin=CID, ymax=CIU, fill=mi),position=position_dodge(.9) ) + theme_bw() + ylab("Mean polygenic score for MI")
+  }
+
 }
 
 ## PLOT ASSOCIATION BETWEEN THE ICD code and MI as function of the PRS 

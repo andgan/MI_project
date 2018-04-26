@@ -3,6 +3,7 @@
 library(survival)
 library(ggplot2)
 library(ggrepel)
+library(reshape2)
 
 # identify the data path
 path <- "C:/Jiwoo Lee/Myocardial Infarction Research Project 2017/"
@@ -16,7 +17,7 @@ source(paste0(path,"MI_project/utils.R"))
 ###########################################################################################################
 
 # Load data from utils.R
-load_data(path)
+total <- load_data(path)
 
 # make mi_date as a date rather than a string
 total$mi_date <- as.Date(total$mi_date, "%Y-%m-%d")
@@ -138,6 +139,12 @@ for (i in 1:length(icd.all)) {
   total.comorb$pred <- ifelse(is.na(total.comorb$icd10_date), 0, 1)
   total.comorb$mi <- ifelse(is.na(total.comorb$mi_date), 0, 1)
   
+  
+  # Calculate mean time distance between ICD code and MI
+  total.comorbT <- total.comorb[total.comorb$pred==1 & total.comorb$mi==1,]
+  mean_day_dist <- mean(total.comorbT$mi_date-total.comorbT$icd10_date)
+  sd_day_dist <- sd(total.comorbT$mi_date-total.comorbT$icd10_date)
+  
   # If you have the ICD you contribute as unexposed (trt=0) from when you enter to when you get the ICD
   data1 <- subset(total.comorb, pred == 1)
   data1$tstart <- 0
@@ -190,11 +197,10 @@ for (i in 1:length(icd.all)) {
   # Testing the interaction between ICD code and PRS
   mod1 <- tryCatch({
     coxph(Surv(tstart, tstop, outP) ~ age + trt*PRS_0.5  + sex, data = findata)
-    
   }, error = function(w) {
     NA
   })
-
+  
   # Testing for association between previous ICD code and PRS in individuals with MI
   datax <- subset(total.comorb, mi == 1)
   datax$endfollowup[datax$pred==1] <- datax$icd10_date[datax$pred==1]
@@ -210,7 +216,9 @@ for (i in 1:length(icd.all)) {
     NA
   })
   
-  res <- rbind(res, c(coef(summary(mod))[2, c(1, 4)],coef(summary(mod1))[5, c(1, 4)],coef(summary(mod2))[2, c(1, 4)],coef(summary(mod3))[2, c(1, 4)]))
+  
+  
+  res <- rbind(res, c(coef(summary(mod))[2, c(1, 4)],coef(summary(mod1))[5, c(1, 4)],coef(summary(mod2))[2, c(1, 4)],coef(summary(mod3))[2, c(1, 4)],mean_day_dist,sd_day_dist))
   
   icd.final <- c(icd.final, icd.all[i])
   
@@ -220,27 +228,83 @@ rownames(res) <- icd.final
 resdf = as.data.frame(res)
 resdf = cbind(icd10 = rownames(resdf), resdf)
 rownames(resdf) <- 1:nrow(resdf)
-colnames(resdf) <- c("ICD10","beta_main","z_main","beta_interaction","z_interaction","beta_just_mi","z_just_mi","beta_main_adj","z_main_adj")
+colnames(resdf) <- c("ICD10","beta_main","z_main","beta_interaction","z_interaction","beta_just_mi","z_just_mi","beta_main_adj","z_main_adj","mean_day_dist","sd_day_dist")
 write.table(resdf, file = paste0(path,'survivalanalysis_pre_sensitivity.tsv'), sep = "\t", row.names = FALSE, col.names = TRUE, quote=F)
 
 
-resdf <- read.table(file = paste0(path,'survivalanalysis_pre_sensitivity.tsv'), sep = "\t", header = TRUE)
+#### DISTROBUTION TIME DISTANCE BETWEEN ICD CODE AND MI ####
+resdf <- read.table(file = paste0(path,'survivalanalysis_pre_sensitivity.tsv'), sep = "\t", header = TRUE, stringsAsFactors = F)
+resdf$ICD10 <- factor(resdf$ICD10, levels = resdf$ICD10[order(resdf$mean_day_dist)])
+ggplot(resdf, aes(ICD10,mean_day_dist)) + 
+  geom_bar(stat = "identity") + 
+  theme(axis.ticks.x = element_blank(), axis.text.x = element_text(angle = 45, hjust = 1,size=4), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black")) +
+  labs(x = "ICD Code", y = "Mean distance to MI (in days)")
 
 
-# rm(data1, data2, data3, dataF, findata, i, icd.all, icd.mi, mod, otherdata, res, temp1, to_remove, total.comorb, total.new.sorted, total.new.sortedU, total.newMI, total.newT, total.newU)
 
+### PLOT ASSOCIATION BETWEEN ICD codes and MI ### 
+resdf <- read.table(file = paste0(path,'survivalanalysis_pre_sensitivity.tsv'), sep = "\t", header = TRUE, stringsAsFactors = F)
 resdf$p_main <- 2*pnorm(-abs(resdf$z_main))
 resdf$logp <- -log10(resdf$p_main)
 resdf$logp[resdf$logp=="Inf"] <- 300
+resdf$ICD10label <- resdf$ICD10
+resdf$ICD10label[resdf$logp < -log10(0.05 / length(icd.all))] <- ""
+ggplot(resdf, aes(ICD10,logp)) + 
+  geom_point(aes(size=exp(beta_main))) + 
+  theme(axis.ticks.x = element_blank(), axis.text.x = element_blank(), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black")) + geom_hline(yintercept = -log10(0.05 / length(icd.all)), size = 1.5, color = "red") + 
+  labs(x = "ICD Code", y = "-log10 Transformed P-Value") + 
+  geom_text_repel(aes(label = resdf$ICD10label),size=3,segment.alpha=0.5) + expand_limits(y = 200) +
+  scale_size_continuous("HR",breaks=c(2,5,10,15,20,25,30), labels=c("2","5","10","15","20","25","30"))
 
-ggplot(resdf, aes(ICD10,logp)) + geom_point(size = 1) + theme(axis.ticks.x = element_blank(), axis.text.x = element_blank(), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black")) + geom_hline(yintercept = -log10(0.05 / length(icd.all)), size = 1.5, color = "red") + labs(x = "ICD Code", y = "-log10 Transformed P-Value") + geom_text(aes(label = resdf$ICD10), hjust=-0.4, vjust=0,size=3) + expand_limits(y = 200)
 
-## PLOT INTERACTION BETWEEN PRS and ICD for association with MI
-resdf$p_interaction <- 2*pnorm(-abs(resdf$z_interaction))
-resdf$logp <- -log10(resdf$p_interaction)
-resdf$logp[resdf$logp=="Inf"] <- 300
+### PLOT ASSOCIATION BETWEEN ICD codes and MI, ADJUSTED AND NON-ADJUSTED ### 
+resdf <- read.table(file = paste0(path,'survivalanalysis_pre_sensitivity.tsv'), sep = "\t", header = TRUE, stringsAsFactors = F)
+resdf$p_main <- 2*pnorm(-abs(resdf$z_main))
+resdf$logp_main <- -log10(resdf$p_main)
+resdf$logp_main[resdf$logp_main=="Inf"] <- 300
+resdf$p_adj <- 2*pnorm(-abs(resdf$z_main_adj))
+resdf$logp_adj <- -log10(resdf$p_adj)
+resdf$logp_adj[resdf$logp_adj=="Inf"] <- 300
+resdf$ICD10label <- resdf$ICD10
 
-ggplot(resdf, aes(ICD10,logp)) + geom_point(size = 1) + theme(axis.ticks.x = element_blank(), axis.text.x = element_blank(), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black")) + geom_hline(yintercept = -log10(0.05 / length(icd.all)), size = 1.5, color = "red") + labs(x = "ICD Code", y = "-log10 Transformed P-Value") + geom_text(aes(label = resdf$ICD10), hjust=-0.4, vjust=0,size=3) 
+resdf2 <- melt(resdf,measure.vars = c("logp_adj","logp_main"))
+resdf2$ICD10label[resdf2$value < -log10(0.05 / length(icd.all)) | resdf2$variable=="logp_main"] <- ""
+ggplot(resdf2, aes(ICD10,value)) + 
+  geom_point(aes(size=exp(beta_main),col=variable)) + 
+  theme(axis.ticks.x = element_blank(), axis.text.x = element_blank(), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black")) + geom_hline(yintercept = -log10(0.05 / length(icd.all)), size = 1.5, color = "red") + 
+  labs(x = "ICD Code", y = "-log10 Transformed P-Value") + 
+  geom_text_repel(aes(label = resdf2$ICD10label),size=3,segment.alpha=0.5) + expand_limits(y = 200) +
+  scale_size_continuous("HR",breaks=c(2,5,10,15,20,25,30), labels=c("2","5","10","15","20","25","30")) +
+  scale_colour_discrete("",breaks=c("logp_adj","logp_main"), labels=c("Adjusted","Unadjusted"))
+
+
+## PLOT ASSOCIATION BETWEEN PRS for MI AND ICD-CODES ###
+resdf <- read.table(file = paste0(path,'survivalanalysis_pre_sensitivity.tsv'), sep = "\t", header = TRUE, stringsAsFactors = F)
+resdf$p_icd_code <- 2*pnorm(-abs(resdf$z_icd_code))
+resdf$logp <- -log10(resdf$p_icd_code)
+resdf$ICD10label <- resdf$ICD10
+resdf$ICD10label[resdf$logp < -log10(0.05 / length(icd.all))] <- ""
+ggplot(resdf, aes(ICD10,logp)) + 
+  geom_point() + 
+  theme(axis.ticks.x = element_blank(), axis.text.x = element_blank(), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black")) + geom_hline(yintercept = -log10(0.05 / length(icd.all)), size = 1.5, color = "red") + 
+  labs(x = "ICD Code", y = "-log10 Transformed P-Value") + 
+  geom_text_repel(aes(label = resdf$ICD10label),size=3,segment.alpha=0.5)
+
+
+
+## PLOT INTERACTION BETWEEN PRS and ICD for association with MI ##
+resdf <- read.table(file = paste0(path,'survivalanalysis_pre_sensitivity.tsv'), sep = "\t", header = TRUE, stringsAsFactors = F)
+icd.sel <- resdf$ICD10[2*pnorm(-abs(resdf$z_main)) < (0.05/nrow(resdf))]
+resdfS <- resdf[resdf$ICD10 %in% icd.sel, ]
+resdfS$p_interaction <- 2*pnorm(-abs(resdfS$z_interaction))
+resdfS$logp <- -log10(resdfS$p_interaction)
+resdfS$ICD10label <- resdfS$ICD10
+resdfS$ICD10label[resdfS$logp < -log10(0.05 / length(icd.sel))] <- ""
+ggplot(resdfS, aes(ICD10,logp)) + 
+  geom_point() + 
+  theme(axis.ticks.x = element_blank(), axis.text.x = element_blank(), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black")) + geom_hline(yintercept = -log10(0.05 / length(icd.all)), size = 1.5, color = "red") + 
+  labs(x = "ICD Code", y = "-log10 Transformed P-Value") + 
+  geom_text_repel(aes(label = resdfS$ICD10label),size=3,segment.alpha=0.5)
 
 
 
@@ -249,16 +313,26 @@ resdf[which(resdf$logp>quantile(resdf$logp,0.95)),]
 
 
 ## PLOT AVERAGE PRS FOR MI, NO MI, ICD, NO ICD
+plot_icd_mi_prs("R07",total.new,total.newMI)
 plot_icd_mi_prs("I20",total.new,total.newMI)
+plot_icd_mi_prs("I24",total.new,total.newMI)
+plot_icd_mi_prs("I50",total.new,total.newMI)
+
 
 
 #### PLOT ASSOCIATION BETWEEN I20 and MI as function of the PRS ####
 plot_icd_mi_prs_int("I20",total.new,total.newMI)
 
 
+
+
+
 ### LOOP ACROSS ICD CODES SIGNIFICANTLY ASSOCIATED WITH MI 
 # keep only unique individuals (and a subset of variables from total.new)
 total.newU <- total.new[!duplicated(total.new$eid), c("eid", "sex", "age", "death", "death_date", "endfollowup", "startfollowup",colnames(total.new)[grep("^X",colnames(total.new))])]
+
+
+
 
 # Check association between the SNPs and MI 
 total.newTEMP <- merge(total.newU,total.newMI,by="eid",all.x=T)
