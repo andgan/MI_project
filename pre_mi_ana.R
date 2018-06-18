@@ -100,6 +100,19 @@ total.newMI <- total.newT[!duplicated(total.newT$eid), c("eid","mi_date")]
 # keep only unique individuals (and a subset of variables from total.new)
 total.newU <- total.new[!duplicated(total.new$eid), c("eid", "sex", "age", "death", "death_date", "endfollowup", "startfollowup","PRS_0.5")]
 
+# Export total.new for other analyses not part of this project
+total.new_to_export <- total.new[,c("eid","sex","birth_date","death","death_date","bp","sbp","dbp","bmi","smoke","mi_date","icd10","icd10_date","age","PRS_0.5","PRS_0.5")]
+total.new_to_export$mi <- ifelse(is.na(total.new_to_export$mi_date),0,1)
+total.new_to_export$sbp[is.na(total.new_to_export$sbp)] <- mean(total.new_to_export$sbp[!duplicated(total.new_to_export$eid)], na.rm=T)
+total.new_to_export$dbp[is.na(total.new_to_export$dbp)] <- mean(total.new_to_export$dbp[!duplicated(total.new_to_export$eid)], na.rm=T)
+total.new_to_export$bmi[is.na(total.new_to_export$bmi)] <- mean(total.new_to_export$bmi[!duplicated(total.new_to_export$eid)], na.rm=T)
+total.new_to_export$age_2000 <- as.Date("01/01/2000",
+  format = "%m/%d/%y")-as.Date(total.new_to_export$birth_date, "%Y-%m-%d")
+total.new_to_export$time_window <- as.numeric(cut(total.new_to_export$icd10_date, breaks="months",include.lowest = TRUE))
+total.new_to_export$time_window_death <- as.numeric(cut(as.Date(total.new_to_export$death_date, "%Y-%m-%d"), breaks="months",include.lowest = TRUE))
+
+write.table(total.new_to_export,file="/Users/andreaganna/Documents/Work/Post_doc/jiwoo/hesin_for_deep_learning.tsv", col.names=T, row.names=F, quote=F, sep="\t")
+
 
 ##########################################################################
 # association analysis: Association between MI and ICD codes before MI

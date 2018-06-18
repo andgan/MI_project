@@ -112,6 +112,15 @@ total.newU <- total.new[!duplicated(total.new$eid), c("eid", "sex", "age", "deat
 total.newTEMP <- merge(total.newU,total.newMI,by="eid",all.x=T)
 total.newTEMP$mi <- ifelse(is.na(total.newTEMP$mi_date),0,1)
 modprs <- coxph(Surv(endfollowup-startfollowup,mi) ~ age + scale(PRS_0.5) + sex, data = total.newTEMP)
+base_cindex_prs <- survConcordance(Surv(endfollowup-startfollowup, mi)~predict(modprs), data = total.newTEMP[!is.na(total.newTEMP$PRS_0.5),])$concordance
+
+
+# Calculate C-index for baseline model without inclusion of the ICD code
+mod_base <- coxph(Surv(endfollowup-startfollowup,mi) ~ age + sex, data = total.newTEMP)
+base_cindex_base <- survConcordance(Surv(endfollowup-startfollowup, mi)~predict(mod_base), data = total.newTEMP)$concordance
+mod_base <- coxph(Surv(endfollowup-startfollowup,mi) ~ age  + sex + sbp + smoke + bmi, data = total.newTEMP)
+risk_factor_base <- survConcordance(Surv(endfollowup-startfollowup, mi)~predict(mod_base), data = total.newTEMP[!is.na(total.newTEMP$sbp) & !is.na(total.newTEMP$smoke) & !is.na(total.newTEMP$bmi),])$concordance
+
 
 # loop across ICD10 codes associated with MI and n > 10
 icd.mi <- total.new[!is.na(total.new$mi_date),c("eid","icd10")]
@@ -186,12 +195,30 @@ for (i in 1:length(icd.all)) {
     NA
   })
   
+  # C-index / discrimination measure for base model: age, sex + icd code
+  base_cindex <- survConcordance(Surv(tstart, tstop, outP)~predict(mod), data = findata)$concordance
+  
+  
+  # Just a test to calculate the base C-index for the model with PRS
+  modtt <- tryCatch({
+    coxph(Surv(tstart, tstop, outP) ~ age + scale(PRS_0.5) + sex, data = findata[!is.na(findata$PRS_0.5),])
+  }, error = function(w) {
+    NA
+  })
+  
+  base_cindex_prs_test <- survConcordance(Surv(tstart, tstop, outP)~predict(modtt), data = findata[!is.na(findata$PRS_0.5),])$concordance
+  
+  
+  
   # Adjusting for risk factors
   mod3 <- tryCatch({
     coxph(Surv(tstart, tstop, outP) ~ age + trt + sex + sbp + smoke + bmi, data = findata)
   }, error = function(w) {
     NA
   })
+  
+  # C-index / discrimination measure for base model + risk factors
+  risk_factor_cindex <- survConcordance(Surv(tstart, tstop, outP)~predict(mod3), data = findata[!is.na(findata$sbp) & !is.na(findata$smoke) & !is.na(findata$bmi),])$concordance
   
   
   # Testing the interaction between ICD code and PRS
@@ -218,7 +245,7 @@ for (i in 1:length(icd.all)) {
   
   
   
-  res <- rbind(res, c(coef(summary(mod))[2, c(1, 4)],coef(summary(mod1))[5, c(1, 4)],coef(summary(mod2))[2, c(1, 4)],coef(summary(mod3))[2, c(1, 4)],mean_day_dist,sd_day_dist))
+  res <- rbind(res, c(coef(summary(mod))[2, c(1, 4)],coef(summary(mod1))[5, c(1, 4)],coef(summary(mod2))[2, c(1, 4)],coef(summary(mod3))[2, c(1, 4)],mean_day_dist,sd_day_dist,base_cindex,risk_factor_cindex,base_cindex_prs_test))
   
   icd.final <- c(icd.final, icd.all[i])
   
@@ -228,7 +255,7 @@ rownames(res) <- icd.final
 resdf = as.data.frame(res)
 resdf = cbind(icd10 = rownames(resdf), resdf)
 rownames(resdf) <- 1:nrow(resdf)
-colnames(resdf) <- c("ICD10","beta_main","z_main","beta_interaction","z_interaction","beta_just_mi","z_just_mi","beta_main_adj","z_main_adj","mean_day_dist","sd_day_dist")
+colnames(resdf) <- c("ICD10","beta_main","z_main","beta_interaction","z_interaction","beta_just_mi","z_just_mi","beta_main_adj","z_main_adj","mean_day_dist","sd_day_dist","cindex_base","cindex_risk_factor","base_cindex_prs_test")
 write.table(resdf, file = paste0(path,'survivalanalysis_pre_sensitivity.tsv'), sep = "\t", row.names = FALSE, col.names = TRUE, quote=F)
 
 
@@ -254,6 +281,22 @@ ggplot(resdf, aes(ICD10,logp)) +
   theme(axis.ticks.x = element_blank(), axis.text.x = element_blank(), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black")) + geom_hline(yintercept = -log10(0.05 / length(icd.all)), size = 1.5, color = "red") + 
   labs(x = "ICD Code", y = "-log10 Transformed P-Value") + 
   geom_text_repel(aes(label = resdf$ICD10label),size=3,segment.alpha=0.5) + expand_limits(y = 200) +
+  scale_size_continuous("HR",breaks=c(2,5,10,15,20,25,30), labels=c("2","5","10","15","20","25","30"))
+
+
+
+### PLOT ASSOCIATION BETWEEN ICD codes and MI - PLOT C-INDEX ### 
+resdf <- read.table(file = paste0(path,'survivalanalysis_pre_sensitivity.tsv'), sep = "\t", header = TRUE, stringsAsFactors = F)
+resdf$p_main <- 2*pnorm(-abs(resdf$z_main))
+resdf$logp <- -log10(resdf$p_main)
+resdf$logp[resdf$logp=="Inf"] <- 300
+resdf$ICD10label <- resdf$ICD10
+resdf$ICD10label[resdf$logp < -log10(0.05 / length(icd.all))] <- ""
+ggplot(resdf, aes(ICD10,cindex_base)) + 
+  geom_point(aes(size=exp(beta_main))) + 
+  theme(axis.ticks.x = element_blank(), axis.text.x = element_blank(), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black")) + geom_hline(yintercept = mean(resdf$base_cindex_prs_test), size = 1.5, color = "red", linetype=2) +
+  labs(x = "ICD Code", y = "C-index (including age and sex)") + 
+  geom_text_repel(aes(label = resdf$ICD10label),size=3,segment.alpha=0.5)  +
   scale_size_continuous("HR",breaks=c(2,5,10,15,20,25,30), labels=c("2","5","10","15","20","25","30"))
 
 
