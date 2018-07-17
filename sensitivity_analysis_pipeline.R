@@ -1,18 +1,18 @@
 ##################################################
-# MYOCARDIAL INFARCTION ANALYSIS
+# MYOCARDIAL INFARCTION SENSITIVITY ANALYSIS
 ##################################################
 
 ##################################################
 # Install and load packages
 ##################################################
 
-# install.packages("survival")
-# install.packages("ggplot2")
-# install.packages("ggrepel")
-# install.packages("reshape2")
-# install.packages("caret")
-# install.packages("pROC")
-# install.packages("plotROC")
+install.packages("survival")
+install.packages("ggplot2")
+install.packages("ggrepel")
+install.packages("reshape2")
+install.packages("caret")
+install.packages("pROC")
+install.packages("plotROC")
 library(survival)
 library(ggplot2)
 library(ggrepel)
@@ -25,8 +25,7 @@ library(plotROC)
 # Load and format data
 ##################################################
 
-path <- "C:/Jiwoo Lee/Myocardial Infarction Research Project 2017/"
-total <- load_data(path)
+total <- read.table('data.tsv', sep = "\t", header = TRUE, stringsAsFactors = F)
 # Columns in data should follow following format:
 # eid            - boolean for ID
 # age            - int/num for age
@@ -40,6 +39,9 @@ total <- load_data(path)
 # bmi            - int/num for body mass index
 # diabetes       - boolean for diabetes status
 # lipid_lowering - boolean for lipid-lowering medications
+# tot_chol       - int/num for total cholesterol
+# hdl_chol       - int/num for HDL cholesterol
+# ldl_chol       - int/num for LDL cholesterol
 # mi             - boolean for myocardial infarction
 # mi_date        - date for day of myocardial infarction
 # ac_date        - date for baseline
@@ -47,6 +49,7 @@ total <- load_data(path)
 # icd10_date     - date for day of ICD10 event
 # Rows in data should be unique ICD10 codes for different individuals
 total$eid <- as.character(total$eid)
+total$age <- as.numeric(total$age)
 total$sex <- as.integer(total$sex)
 total$birth_date <- as.Date(total$birth_date, "%Y-%m-%d")
 total$death <- as.integer(total$death)
@@ -57,28 +60,29 @@ total$smoke <- as.integer(total$smoke)
 total$bmi <- as.numeric(total$bmi)
 total$diabetes <- as.integer(total$diabetes)
 total$lipid_lowering <- as.integer(total$lipid_lowering)
+total$tot_chol <- as.integer(total$tot_chol)
+total$hdl_chol <- as.integer(total$hdl_chol)
+total$ldl_chol <- as.integer(total$ldl_chol)
+total$mi <- as.integer(total$mi)
 total$mi_date <- as.Date(total$mi_date, "%Y-%m-%d")
 total$ac_date <- as.Date(total$ac_date, "%Y-%m-%d")
 total$icd10 <- as.character(total$icd10)
 total$icd10_date <- as.Date(total$icd10_date, "%Y-%m-%d")
-total$age <- round(as.numeric((total$ac_date - total$birth_date) / 365.25), 2)
-total$age <- as.numeric(total$age)
-total$mi <- ifelse(is.na(total$mi_date), 0, 1)
-total$mi <- as.integer(total$mi)
 nrow(total)
-#2684417 rows
+#_____ rows
 length(unique(total$eid))
-#502616 individuals
+#_____ individuals
 length(unique(total$icd10))
-#1469 ICD codes
+#_____ ICD codes
 length(unique(total[which(!is.na(total$mi_date)),]$eid))
-#18143 individuals with MI
+#_____ individuals with MI
 
 ##################################################
 # Clean data based on exclusion criteria
 ##################################################
 
 # create start-of-follow-up (entrance in the study) and end-of-follow-up (exit in the study, date of MI, or date of death death)
+# CHANGE: date of beginning of study and date of end of study will be different
 study.start <- as.Date("1998-01-01", "%Y-%m-%d")
 study.end <- as.Date("2015-03-01", "%Y-%m-%d")
 total$startfollowup <- total$ac_date
@@ -87,7 +91,7 @@ class(total$startfollowup) <- "Date"
 class(total$endfollowup) <- "Date"
 
 # exclude ICD10 codes that are not related to disease (e.g., car crash) 
-total.new <- total[,c("eid", "age", "sex", "birth_date", "death", "death_date", "prs", "sbp", "smoke", "bmi", "diabetes", "lipid_lowering", "mi", "mi_date", "ac_date", "icd10", "icd10_date", "startfollowup", "endfollowup")]
+total.new <- total[,c("eid", "age", "sex", "birth_date", "death", "death_date", "prs", "sbp", "smoke", "bmi", "diabetes", "lipid_lowering", "tot_chol", "hdl_chol", "ldl_chol", "mi", "mi_date", "ac_date", "icd10", "icd10_date", "startfollowup", "endfollowup")]
 to_remove <- unique(total.new$icd10[grepl("^V|^W|^X|^Y|^Z", total.new$icd10)])
 to_remove <- unique(to_remove[!is.na(to_remove)])
 total.new$icd10[grepl("^V|^W|^X|^Y|^Z", total.new$icd10)] <- NA
@@ -98,13 +102,13 @@ if (length(which(total.new$icd10 %in% to_remove == "TRUE")) != 0) {
   print("NO ERROR.")
 }
 nrow(total.new)
-#2684417 rows
+#_____ rows
 length(unique(total.new$eid))
-#502616 individuals
+#_____ individuals
 length(unique(total.new$icd10))
-#1386 ICD codes
+#_____ ICD codes
 length(unique(total.new[which(!is.na(total.new$mi_date)),]$eid))
-#18143 individuals with MI
+#_____ individuals with MI
 
 # remove individuals with MI outside of timeframe 
 to_remove <- total.new$eid[total.new$mi_date > study.end | total.new$mi_date < total.new$startfollowup]
@@ -116,28 +120,13 @@ if (length(which(total.new$eid %in% to_remove == "TRUE")) != 0) {
   print("NO ERROR.")
 }
 nrow(total.new)
-#2515157 rows
+#_____ rows
 length(unique(total.new$eid))
-#490308 individuals
+#_____ individuals
 length(unique(total.new$icd10))
-#1382 ICD codes
+#_____ ICD codes
 length(unique(total.new[which(!is.na(total.new$mi_date)),]$eid))
-#5835 individuals with MI
-
-# ASSOCIATION ANALYSIS: keep ICD10 codes both before and after baseline
-total.new1 <- total.new
-total.new1$icd10[total.new1$icd10_date > study.end | total.new1$icd10_date < study.start] <- NA
-total.new1$icd10_date[total.new1$icd10_date > study.end | total.new1$icd10_date < study.start] <- NA
-total.new1$icd10[(total.new1$mi_date - total.new1$icd10_date) < 8] <- NA
-total.new1$icd10_date[(total.new1$mi_date - total.new1$icd10_date) < 8] <- NA
-nrow(total.new1)
-#2515157 rows
-length(unique(total.new1$eid))
-#490308 individuals
-length(unique(total.new1$icd10))
-#1375 ICD codes
-length(unique(total.new1[which(!is.na(total.new1$mi_date)),]$eid))
-#5835 individuals with MI
+#_____ individuals with MI
 
 # SENSITIVITY ANALYSIS: remove ICD10 codes related to MI (I20 through I25)
 total.new2 <- total.new
@@ -150,13 +139,13 @@ if (length(which(total.new2$eid %in% to_remove == "TRUE")) != 0) {
   print("NO ERROR.")
 }
 nrow(total.new2)
-#2282556 rows
+#_____ rows
 length(unique(total.new2$eid))
-#470950 individuals 
+#_____ individuals 
 length(unique(total.new2$icd10))
-#1367 ICD codes
+#_____ ICD codes
 length(unique(total.new2[which(!is.na(total.new2$mi_date)),]$eid))
-#1018 individuals with MI 
+#_____ individuals with MI 
 
 # SENSITIVITY ANALYSIS: keep ICD10 codes only before baseline
 total.new2$icd10[total.new2$icd10_date > total.new2$startfollowup | total.new2$icd10_date < study.start] <- NA
@@ -164,13 +153,13 @@ total.new2$icd10_date[total.new2$icd10_date > total.new2$startfollowup | total.n
 total.new2$icd10[(total.new2$mi_date - total.new2$icd10_date) < 8] <- NA
 total.new2$icd10_date[(total.new2$mi_date - total.new2$icd10_date) < 8] <- NA
 nrow(total.new2)
-#2282556 rows
+#_____ rows
 length(unique(total.new2$eid))
-#470950 individuals 
+#_____ individuals 
 length(unique(total.new2$icd10))
-#1304 ICD codes
+#_____ ICD codes
 length(unique(total.new2[which(!is.na(total.new2$mi_date)),]$eid))
-#1018 individuals with MI 
+#_____ individuals with MI 
 
 
 
@@ -193,17 +182,16 @@ length(unique(total.new2[which(!is.na(total.new2$mi_date)),]$eid))
 
 ##################################################
 # Survival analysis for PRS
-total.new <- total.new1 # for association analysis
 total.new <- total.new2 # for sensitivity analysis
 ##################################################
 
 # create datasets for survival analysis
-total.newMOD <- total.new[!duplicated(total.new$eid), c("eid", "age", "sex", "birth_date", "death", "death_date", "prs", "sbp", "smoke", "bmi", "diabetes", "lipid_lowering", "mi", "mi_date", "ac_date", "startfollowup", "endfollowup")]
-total.newMOD <- total.newMOD[!is.na(total.newMOD$prs) & !is.na(total.newMOD$sbp) & !is.na(total.newMOD$smoke) & !is.na(total.newMOD$bmi) & !is.na(total.newMOD$diabetes) & !is.na(total.newMOD$lipid_lowering),]
+total.newMOD <- total.new[!duplicated(total.new$eid), c("eid", "age", "sex", "birth_date", "death", "death_date", "prs", "sbp", "smoke", "bmi", "diabetes", "lipid_lowering", "tot_chol", "hdl_chol", "ldl_chol", "mi", "mi_date", "ac_date", "startfollowup", "endfollowup")]
+total.newMOD <- total.newMOD[!is.na(total.newMOD$prs) & !is.na(total.newMOD$sbp) & !is.na(total.newMOD$smoke) & !is.na(total.newMOD$bmi) & !is.na(total.newMOD$diabetes) & !is.na(total.newMOD$lipid_lowering) & !is.na(total.newMOD$tot_chol) & !is.na(total.newMOD$hdl_chol) & !is.na(total.newMOD$ldl_chol),]
 # survival analysis models and c-index for PRS
-mod_risk_factor <- coxph(Surv(endfollowup - startfollowup,mi) ~ age + sex + sbp + smoke + bmi + diabetes + lipid_lowering, data = total.newMOD)
+mod_risk_factor <- coxph(Surv(endfollowup - startfollowup,mi) ~ age + sex + sbp + smoke + bmi + diabetes + lipid_lowering + tot_chol + hdl_chol + ldl_chol, data = total.newMOD)
 cindex_risk_factor <- survConcordance(Surv(endfollowup - startfollowup, mi) ~ predict(mod_risk_factor), data = total.newMOD)$concordance
-mod_prs_risk_factor <- coxph(Surv(endfollowup - startfollowup, mi) ~ age + scale(prs) + sex + sbp + smoke + bmi + diabetes + lipid_lowering, data = total.newMOD)
+mod_prs_risk_factor <- coxph(Surv(endfollowup - startfollowup, mi) ~ age + scale(prs) + sex + sbp + smoke + bmi + diabetes + lipid_lowering + tot_chol + hdl_chol + ldl_chol, data = total.newMOD)
 cindex_prs_risk_factor <- survConcordance(Surv(endfollowup - startfollowup, mi) ~ predict(mod_prs_risk_factor), data = total.newMOD)$concordance
 
 ##################################################
@@ -219,7 +207,7 @@ res <- NULL
 # create datasets for survival analysis
 total.newT <- total.new[!is.na(total.new$mi_date),]
 total.newMI <- total.newT[!duplicated(total.newT$eid), c("eid", "mi", "mi_date")]
-total.newU <- total.new[!duplicated(total.new$eid), c("eid", "age", "sex", "birth_date", "death", "death_date", "prs", "sbp", "smoke", "bmi", "diabetes", "lipid_lowering", "ac_date", "startfollowup", "endfollowup")]
+total.newU <- total.new[!duplicated(total.new$eid), c("eid", "age", "sex", "birth_date", "death", "death_date", "prs", "sbp", "smoke", "bmi", "diabetes", "lipid_lowering", "tot_chol", "hdl_chol", "ldl_chol", "ac_date", "startfollowup", "endfollowup")]
 
 for (i in 1:length(icd.all)) {
   
@@ -268,7 +256,7 @@ for (i in 1:length(icd.all)) {
   # create final dataset
   findata <- rbind(dataF, otherdata)
   findata <- findata[findata$tstart < findata$tstop,]
-  findata <- findata[!is.na(findata$prs) & !is.na(findata$sbp) & !is.na(findata$smoke) & !is.na(findata$bmi) & !is.na(findata$diabetes) & !is.na(findata$lipid_lowering),]
+  findata <- findata[!is.na(findata$prs) & !is.na(findata$sbp) & !is.na(findata$smoke) & !is.na(findata$bmi) & !is.na(findata$diabetes) & !is.na(findata$lipid_lowering) & !is.na(total.newMOD$tot_chol) & !is.na(total.newMOD$hdl_chol) & !is.na(total.newMOD$ldl_chol),]
 
   # base model
   mod <- tryCatch({ coxph(Surv(tstart, tstop, outP) ~ trt, data = findata) }, error = function(w) { NA })
@@ -277,7 +265,7 @@ for (i in 1:length(icd.all)) {
   mod1 <- tryCatch({ coxph(Surv(tstart, tstop, outP) ~ age + trt + sex, data = findata) }, error = function(w) { NA })
   cindex_icd <- survConcordance(Surv(tstart, tstop, outP) ~ predict(mod1), data = findata)$concordance
   # model with risk factors
-  mod2 <- tryCatch({ coxph(Surv(tstart, tstop, outP) ~ age + trt + sex + sbp + smoke + bmi + diabetes + lipid_lowering, data = findata) }, error = function(w) { NA })
+  mod2 <- tryCatch({ coxph(Surv(tstart, tstop, outP) ~ age + trt + sex + sbp + smoke + bmi + diabetes + lipid_lowering + tot_chol + hdl_chol + ldl_chol, data = findata) }, error = function(w) { NA })
   cindex_icd_risk_factor <- survConcordance(Surv(tstart, tstop, outP) ~ predict(mod2), data = findata)$concordance
   # base model of interaction
   mod3 <- tryCatch({ coxph(Surv(tstart, tstop, outP) ~ trt*prs, data = findata) }, error = function(w) { NA })
@@ -286,7 +274,7 @@ for (i in 1:length(icd.all)) {
   mod4 <- tryCatch({ coxph(Surv(tstart, tstop, outP) ~ age + trt*prs + sex, data = findata) }, error = function(w) { NA })
   cindex_interaction <- survConcordance(Surv(tstart, tstop, outP) ~ predict(mod4), data = findata)$concordance
   # base model of interaction with risk factors
-  mod5 <- tryCatch({ coxph(Surv(tstart, tstop, outP) ~ age + trt*prs + sex + sbp + smoke + bmi + diabetes + lipid_lowering, data = findata) }, error = function(w) { NA })
+  mod5 <- tryCatch({ coxph(Surv(tstart, tstop, outP) ~ age + trt*prs + sex + sbp + smoke + bmi + diabetes + lipid_lowering + tot_chol + hdl_chol + ldl_chol, data = findata) }, error = function(w) { NA })
   cindex_interaction_risk_factor <- survConcordance(Surv(tstart, tstop, outP) ~ predict(mod5), data = findata)$concordance
 
   res <- rbind(res, c(coef(summary(mod))["trt", c("coef", "z")], coef(summary(mod1))["trt", c("coef", "z")], coef(summary(mod2))["trt", c("coef", "z")], coef(summary(mod3))["trt:prs", c("coef", "z")], coef(summary(mod4))["trt:prs", c("coef", "z")], coef(summary(mod5))["trt:prs", c("coef", "z")], 
@@ -301,7 +289,6 @@ resdf = cbind(icd10 = icd.all, resdf)
 rownames(resdf) <- 1:nrow(resdf)
 colnames(resdf) <- c("ICD10", "beta_base", "z_base", "beta_icd", "z_icd", "beta_risk_factor", "z_risk_factor", "beta_interaction_base", "z_interaction_base", "beta_interaction", "z_interaction", "beta_interaction_risk_factor", "z_interaction_risk_factor", 
   "mean_day_dist", "sd_day_dist", "cindex_icd_base", "cindex_icd", "cindex_icd_risk_factor", "cindex_interaction_base", "cindex_interaction", "cindex_interaction_risk_factor")
-write.table(resdf, file = paste0(path, 'association_analysis.tsv'), sep = "\t", row.names = FALSE, col.names = TRUE, quote=F)
 write.table(resdf, file = paste0(path, 'sensitivity_analysis.tsv'), sep = "\t", row.names = FALSE, col.names = TRUE, quote=F)
 
 
@@ -328,7 +315,6 @@ write.table(resdf, file = paste0(path, 'sensitivity_analysis.tsv'), sep = "\t", 
 ##################################################
 
 # load results of survival analysis
-resdf <- read.table(file = paste0(path, 'association_analysis.tsv'), sep = "\t", header = TRUE, stringsAsFactors = F)
 resdf <- read.table(file = paste0(path, 'sensitivity_analysis.tsv'), sep = "\t", header = TRUE, stringsAsFactors = F)
 # calculate hazard ratio and p-value from results of survival analysis
 resdf$logp_base <- -log10(2*pnorm(-abs(resdf$z_base)))
@@ -402,7 +388,8 @@ ggplot(data = resdf.new, mapping = aes(ICD10, logp_interaction_base)) +
 
 # calculate and plot C-index for population subsets (e.g., individuals with only I20) using model of PRS
 sub.pop.table <- NULL
-main.icd <- c("E10", "E11", "F10", "G47")
+# CHANGE: replace main.icd with important ICD10 codes (e.g., ICD10 codes with large c-indices)
+main.icd <- c("I20", "I24", "R07")
 for (i in 1:length(main.icd)) {
 
   # create list of individuals with specific ICD10 code
@@ -411,10 +398,10 @@ for (i in 1:length(main.icd)) {
   # create dataset of individuals with specific ICD10 code
   total.newI <- total.new[total.new$eid %in% ids,]
   total.newI$mi <- ifelse(is.na(total.newI$mi_date), 0, 1)
-  total.newI <- total.newI[which(total.newI$icd10 == main.icd[i]), c("eid", "sex", "age", "death", "death_date", "mi", "mi_date", "icd10", "icd10_date", "prs", "sbp", "smoke", "bmi", "diabetes", "lipid_lowering", "startfollowup", "endfollowup")]
+  total.newI <- total.newI[which(total.newI$icd10 == main.icd[i]), c("eid", "sex", "age", "death", "death_date", "mi", "mi_date", "icd10", "icd10_date", "prs", "sbp", "smoke", "bmi", "diabetes", "lipid_lowering", "tot_chol", "hdl_chol", "ldl_chol", "startfollowup", "endfollowup")]
   total.newI <- total.newI[!duplicated(total.newI$eid),]
   # survival analysis of individuals with specific ICD10 code
-  mod_prs_i <- coxph(Surv(endfollowup - startfollowup,mi) ~ age + scale(prs) + sex + sbp + smoke + bmi + diabetes + lipid_lowering, data = total.newI)
+  mod_prs_i <- coxph(Surv(endfollowup - startfollowup,mi) ~ age + scale(prs) + sex + sbp + smoke + bmi + diabetes + lipid_lowering + tot_chol + hdl_chol + ldl_chol, data = total.newI)
   hr_i <- coef(summary(mod_prs_i))["scale(prs)", "exp(coef)"]
   hr_i_min <- exp(coef(summary(mod_prs_i))["scale(prs)", "coef"] - 1.96*coef(summary(mod_prs_i))["scale(prs)", "se(coef)"])
   hr_i_max <- exp(coef(summary(mod_prs_i))["scale(prs)", "coef"] + 1.96*coef(summary(mod_prs_i))["scale(prs)", "se(coef)"])
@@ -422,10 +409,10 @@ for (i in 1:length(main.icd)) {
   # create datatset of individuals without specific ICD10 code
   total.newNI <- total.new[!(total.new$eid %in% ids),]
   total.newNI$mi <- ifelse(is.na(total.newNI$mi_date), 0, 1)
-  total.newNI <- total.newNI[,c("eid", "sex", "age", "death", "death_date", "mi", "mi_date", "icd10", "icd10_date", "prs", "sbp", "smoke", "bmi", "diabetes", "lipid_lowering", "startfollowup", "endfollowup")]
+  total.newNI <- total.newNI[,c("eid", "sex", "age", "death", "death_date", "mi", "mi_date", "icd10", "icd10_date", "prs", "sbp", "smoke", "bmi", "diabetes", "lipid_lowering", "tot_chol", "hdl_chol", "ldl_chol", "startfollowup", "endfollowup")]
   total.newNI <- total.newNI[!duplicated(total.newNI$eid),]
   # survival analysis of individuals without specific ICD10 code
-  mod_prs_ni <- coxph(Surv(endfollowup - startfollowup,mi) ~ age + scale(prs) + sex + sbp + smoke + bmi + diabetes + lipid_lowering, data = total.newNI)
+  mod_prs_ni <- coxph(Surv(endfollowup - startfollowup,mi) ~ age + scale(prs) + sex + sbp + smoke + bmi + diabetes + lipid_lowering + tot_chol + hdl_chol + ldl_chol, data = total.newNI)
   hr_ni <- coef(summary(mod_prs_ni))["scale(prs)", "exp(coef)"]
   hr_ni_min <- exp(coef(summary(mod_prs_ni))["scale(prs)", "coef"] - 1.96*coef(summary(mod_prs_ni))["scale(prs)", "se(coef)"])
   hr_ni_max <- exp(coef(summary(mod_prs_ni))["scale(prs)", "coef"] + 1.96*coef(summary(mod_prs_ni))["scale(prs)", "se(coef)"])
@@ -478,26 +465,26 @@ no.icd.ids <- unique(total.new$eid[!(total.new$eid %in% icd.ids)])
 # subset population with no previous comorbidities 
 total.newNA <- total.new[total.new$eid %in% no.icd.ids,]
 total.newNA$mi <- ifelse(is.na(total.newNA$mi_date), 0, 1)
-total.newNA <- total.newNA[!duplicated(total.newNA$eid), c("eid", "age", "sex", "birth_date", "death", "death_date", "mi", "mi_date", "icd10", "icd10_date", "prs", "sbp", "smoke", "bmi", "diabetes", "lipid_lowering", "startfollowup", "endfollowup")]
-total.newNA <- total.newNA[!is.na(total.newNA$prs) & !is.na(total.newNA$sbp) & !is.na(total.newNA$smoke) & !is.na(total.newNA$bmi) & !is.na(total.newNA$diabetes) & !is.na(total.newNA$lipid_lowering),]
+total.newNA <- total.newNA[!duplicated(total.newNA$eid), c("eid", "age", "sex", "birth_date", "death", "death_date", "mi", "mi_date", "icd10", "icd10_date", "prs", "sbp", "smoke", "bmi", "diabetes", "lipid_lowering", "tot_chol", "hdl_chol", "ldl_chol", "startfollowup", "endfollowup")]
+total.newNA <- total.newNA[!is.na(total.newNA$prs) & !is.na(total.newNA$sbp) & !is.na(total.newNA$smoke) & !is.na(total.newNA$bmi) & !is.na(total.newNA$diabetes) & !is.na(total.newNA$lipid_lowering) & !is.na(total.newNA$tot_chol) & !is.na(total.newNA$hdl_chol) & !is.na(total.newNA$ldl_chol),]
 # subset population with previous comorbidities
 total.newICD <- total.new[total.new$eid %in% icd.ids,]
 total.newICD$mi <- ifelse(is.na(total.newICD$mi_date), 0, 1)
-total.newICD <- total.newICD[!duplicated(total.newICD$eid), c("eid", "age", "sex", "birth_date", "death", "death_date", "mi", "mi_date", "icd10", "icd10_date", "prs", "sbp", "smoke", "bmi", "diabetes", "lipid_lowering", "startfollowup", "endfollowup")]
-total.newICD <- total.newICD[!is.na(total.newICD$prs) & !is.na(total.newICD$sbp) & !is.na(total.newICD$smoke) & !is.na(total.newICD$bmi) & !is.na(total.newICD$diabetes) & !is.na(total.newICD$lipid_lowering),]
+total.newICD <- total.newICD[!duplicated(total.newICD$eid), c("eid", "age", "sex", "birth_date", "death", "death_date", "mi", "mi_date", "icd10", "icd10_date", "prs", "sbp", "smoke", "bmi", "diabetes", "lipid_lowering", "tot_chol", "hdl_chol", "ldl_chol", "startfollowup", "endfollowup")]
+total.newICD <- total.newICD[!is.na(total.newICD$prs) & !is.na(total.newICD$sbp) & !is.na(total.newICD$smoke) & !is.na(total.newICD$bmi) & !is.na(total.newICD$diabetes) & !is.na(total.newICD$lipid_lowering) & !is.na(total.newNA$tot_chol) & !is.na(total.newNA$hdl_chol) & !is.na(total.newNA$ldl_chol),]
 # check association between PRS and MI for individuals with no previous comorbidities
-mod_prs_no_comorb <- coxph(Surv(endfollowup - startfollowup,mi) ~ age + scale(prs) + sex + sbp + smoke + bmi + diabetes + lipid_lowering, data = total.newNA)
+mod_prs_no_comorb <- coxph(Surv(endfollowup - startfollowup,mi) ~ age + scale(prs) + sex + sbp + smoke + bmi + diabetes + lipid_lowering + tot_chol + hdl_chol + ldl_chol, data = total.newNA)
 cindex_prs_no_comorb <- survConcordance(Surv(endfollowup - startfollowup, mi) ~ predict(mod_prs_no_comorb), data = total.newNA)$concordance
 err_prs_no_comorb <- as.numeric(survConcordance(Surv(endfollowup - startfollowup, mi) ~ predict(mod_prs_no_comorb), data = total.newNA)$std.err)
-mod_prs_no_comorb_base <- coxph(Surv(endfollowup - startfollowup,mi) ~ age + sex + sbp + smoke + bmi + diabetes + lipid_lowering, data = total.newNA)
+mod_prs_no_comorb_base <- coxph(Surv(endfollowup - startfollowup,mi) ~ age + sex + sbp + smoke + bmi + diabetes + lipid_lowering + tot_chol + hdl_chol + ldl_chol, data = total.newNA)
 cindex_prs_no_comorb_base <- survConcordance(Surv(endfollowup - startfollowup, mi) ~ predict(mod_prs_no_comorb_base), data = total.newNA)$concordance
 err_prs_no_comorb_base <- as.numeric(survConcordance(Surv(endfollowup - startfollowup, mi) ~ predict(mod_prs_no_comorb_base), data = total.newNA)$std.err)
 no_comorb <- cbind(group = "None", cindex = cindex_prs_no_comorb, error = err_prs_no_comorb, cindex.base = cindex_prs_no_comorb_base, error.base = err_prs_no_comorb_base)
 # check association between PRS and MI for individuals with previous comorbidities
-mod_prs_comorb <- coxph(Surv(endfollowup - startfollowup,mi) ~ age + scale(prs) + sex + sbp + smoke + bmi + diabetes + lipid_lowering, data = total.newICD)
+mod_prs_comorb <- coxph(Surv(endfollowup - startfollowup,mi) ~ age + scale(prs) + sex + sbp + smoke + bmi + diabetes + lipid_lowering + tot_chol + hdl_chol + ldl_chol, data = total.newICD)
 cindex_prs_comorb <- survConcordance(Surv(endfollowup - startfollowup, mi) ~ predict(mod_prs_comorb), data = total.newICD)$concordance
 err_prs_comorb <- as.numeric(survConcordance(Surv(endfollowup - startfollowup, mi) ~ predict(mod_prs_comorb), data = total.newICD)$std.err)
-mod_prs_comorb_base <- coxph(Surv(endfollowup - startfollowup,mi) ~ age + sex + sbp + smoke + bmi + diabetes + lipid_lowering, data = total.newICD)
+mod_prs_comorb_base <- coxph(Surv(endfollowup - startfollowup,mi) ~ age + sex + sbp + smoke + bmi + diabetes + lipid_lowering + tot_chol + hdl_chol + ldl_chol, data = total.newICD)
 cindex_prs_comorb_base <- survConcordance(Surv(endfollowup - startfollowup, mi) ~ predict(mod_prs_comorb_base), data = total.newICD)$concordance
 err_prs_comorb_base <- as.numeric(survConcordance(Surv(endfollowup - startfollowup, mi) ~ predict(mod_prs_comorb_base), data = total.newICD)$std.err)
 comorb <- cbind(group = "All", cindex = cindex_prs_comorb, error = err_prs_comorb, cindex.base = cindex_prs_comorb_base, error.base = err_prs_comorb_base)
@@ -551,7 +538,7 @@ total.newPRS$top10 <- ifelse(total.newPRS$prs >= quantile(total.newPRS$prs, 0.90
 # survival analysis for different cutoffs of dichotomous PRS
 cindex.dich.prs <- NULL
 for (i in 1:length(cutoffs)) {
-  mod_dich_prs <- coxph(Surv(endfollowup - startfollowup, mi) ~ age + total.newPRS[, cutoffs[i]] + sex + sbp + smoke + bmi + diabetes + lipid_lowering, data = total.newPRS)
+  mod_dich_prs <- coxph(Surv(endfollowup - startfollowup, mi) ~ age + total.newPRS[, cutoffs[i]] + sex + sbp + smoke + bmi + diabetes + lipid_lowering + tot_chol + hdl_chol + ldl_chol, data = total.newPRS)
   numb <- cbind(group = cutoffs[i], hr = coef(summary(mod_dich_prs))["total.newPRS[, cutoffs[i]]", "exp(coef)"], 
     hrmin = exp(coef(summary(mod_dich_prs))["total.newPRS[, cutoffs[i]]", "coef"] - 1.96*coef(summary(mod_dich_prs))["total.newPRS[, cutoffs[i]]", "se(coef)"]), 
     hrmax = exp(coef(summary(mod_dich_prs))["total.newPRS[, cutoffs[i]]", "coef"] + 1.96*coef(summary(mod_dich_prs))["total.newPRS[, cutoffs[i]]", "se(coef)"]))
@@ -577,7 +564,7 @@ total.newPRS$top10 <- ifelse(total.newPRS$prs >= quantile(total.newPRS$prs, 0.90
 # survival analysis for different cutoffs of dichotomous PRS
 cindex.dich.prs <- NULL
 for (i in 1:length(cutoffs)) {
-  mod_dich_prs <- coxph(Surv(endfollowup - startfollowup, mi) ~ age + total.newPRS[, cutoffs[i]] + sex + sbp + smoke + bmi + diabetes + lipid_lowering, data = total.newPRS)
+  mod_dich_prs <- coxph(Surv(endfollowup - startfollowup, mi) ~ age + total.newPRS[, cutoffs[i]] + sex + sbp + smoke + bmi + diabetes + lipid_lowering + tot_chol + hdl_chol + ldl_chol, data = total.newPRS)
   numb <- cbind(group = cutoffs[i], hr = coef(summary(mod_dich_prs))["total.newPRS[, cutoffs[i]]", "exp(coef)"], 
     hrmin = exp(coef(summary(mod_dich_prs))["total.newPRS[, cutoffs[i]]", "coef"] - 1.96*coef(summary(mod_dich_prs))["total.newPRS[, cutoffs[i]]", "se(coef)"]), 
     hrmax = exp(coef(summary(mod_dich_prs))["total.newPRS[, cutoffs[i]]", "coef"] + 1.96*coef(summary(mod_dich_prs))["total.newPRS[, cutoffs[i]]", "se(coef)"]))

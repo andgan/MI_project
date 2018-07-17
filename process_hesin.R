@@ -98,3 +98,11 @@ colnames(data) = c("eid", "icd10", "icd10_date", "age", "mi_date", "stroke_date"
 data = data[, c("eid", "sex", "birth_date", "death", "death_date", "bp", "sbp", "dbp", "bmi", "smoke", "mi_date", "stroke_date", "icd10", "icd10_date", "ac_date", "ac_location", "age", "diabetes", "lipid_lowering")]
 write.table(data, file = paste0(path,'hesin_registry_assess_cent_all_v2.csv'), sep = '\t', row.names = F, quote = F)
 rm(reg, ac, ac.new, ac.all, data)
+
+
+# adding the additional PRS, but hold off - need out4.Rdata
+
+tg = read.table(file = paste0(path,'UKB_CardioTG_PRS.txt'), sep = '\t', header = TRUE, stringsAsFactors = FALSE, na.strings = "")
+tc = read.table(file = paste0(path,'UKB_CardioTC_PRS.txt'), sep = '\t', header = TRUE, stringsAsFactors = FALSE, na.strings = "")
+ldl = read.table(file = paste0(path,'UKB_CardioLDL_PRS.txt'), sep = '\t', header = TRUE, stringsAsFactors = FALSE, na.strings = "")
+hdl = read.table(file = paste0(path,'UKB_CardioHDL_PRS.txt'), sep = '\t', header = TRUE, stringsAsFactors = FALSE, na.strings = "")
