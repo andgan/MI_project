@@ -13,6 +13,7 @@ install.packages("reshape2")
 install.packages("caret")
 install.packages("pROC")
 install.packages("plotROC")
+install.packages("data.table")
 library(survival)
 library(ggplot2)
 library(ggrepel)
@@ -20,6 +21,7 @@ library(reshape2)
 library(caret)
 library(pROC)
 library(plotROC)
+library(data.table)
 
 ##################################################
 # Load and format data
@@ -384,7 +386,7 @@ ggplot(data = resdf.new, mapping = aes(ICD10, logp_interaction_base)) +
 # Analysis of interaction for population subsets of ICD10 codes
 ##################################################
 
-# calculate and plot C-index for population subsets (e.g., individuals with only I20) using model of PRS
+# calculate and plot c-index for population subsets (e.g., individuals with only I20) using model of PRS
 sub.pop.table <- NULL
 # CHANGE: replace main.icd with important ICD10 codes (e.g., ICD10 codes with large c-indices)
 main.icd <- c("I20", "I24", "R07")
@@ -465,11 +467,6 @@ total.newNA <- total.new[total.new$eid %in% no.icd.ids,]
 total.newNA$mi <- ifelse(is.na(total.newNA$mi_date), 0, 1)
 total.newNA <- total.newNA[!duplicated(total.newNA$eid), c("eid", "age", "sex", "birth_date", "death", "death_date", "mi", "mi_date", "icd10", "icd10_date", "prs", "sbp", "smoke", "bmi", "diabetes", "lipid_lowering", "tot_chol", "hdl_chol", "ldl_chol", "startfollowup", "endfollowup")]
 total.newNA <- total.newNA[!is.na(total.newNA$prs) & !is.na(total.newNA$sbp) & !is.na(total.newNA$smoke) & !is.na(total.newNA$bmi) & !is.na(total.newNA$diabetes) & !is.na(total.newNA$lipid_lowering) & !is.na(total.newNA$tot_chol) & !is.na(total.newNA$hdl_chol) & !is.na(total.newNA$ldl_chol),]
-# subset population with previous comorbidities
-total.newICD <- total.new[total.new$eid %in% icd.ids,]
-total.newICD$mi <- ifelse(is.na(total.newICD$mi_date), 0, 1)
-total.newICD <- total.newICD[!duplicated(total.newICD$eid), c("eid", "age", "sex", "birth_date", "death", "death_date", "mi", "mi_date", "icd10", "icd10_date", "prs", "sbp", "smoke", "bmi", "diabetes", "lipid_lowering", "tot_chol", "hdl_chol", "ldl_chol", "startfollowup", "endfollowup")]
-total.newICD <- total.newICD[!is.na(total.newICD$prs) & !is.na(total.newICD$sbp) & !is.na(total.newICD$smoke) & !is.na(total.newICD$bmi) & !is.na(total.newICD$diabetes) & !is.na(total.newICD$lipid_lowering) & !is.na(total.newICD$tot_chol) & !is.na(total.newICD$hdl_chol) & !is.na(total.newICD$ldl_chol),]
 # check association between PRS and MI for individuals with no previous comorbidities
 mod_prs_no_comorb <- coxph(Surv(endfollowup - startfollowup,mi) ~ age + scale(prs) + sex + sbp + smoke + bmi + diabetes + lipid_lowering + tot_chol + hdl_chol + ldl_chol, data = total.newNA)
 cindex_prs_no_comorb <- survConcordance(Surv(endfollowup - startfollowup, mi) ~ predict(mod_prs_no_comorb), data = total.newNA)$concordance
@@ -478,6 +475,11 @@ mod_prs_no_comorb_base <- coxph(Surv(endfollowup - startfollowup,mi) ~ age + sex
 cindex_prs_no_comorb_base <- survConcordance(Surv(endfollowup - startfollowup, mi) ~ predict(mod_prs_no_comorb_base), data = total.newNA)$concordance
 err_prs_no_comorb_base <- as.numeric(survConcordance(Surv(endfollowup - startfollowup, mi) ~ predict(mod_prs_no_comorb_base), data = total.newNA)$std.err)
 no_comorb <- cbind(group = "None", cindex = cindex_prs_no_comorb, error = err_prs_no_comorb, cindex.base = cindex_prs_no_comorb_base, error.base = err_prs_no_comorb_base)
+# subset population with previous comorbidities
+total.newICD <- total.new[total.new$eid %in% icd.ids,]
+total.newICD$mi <- ifelse(is.na(total.newICD$mi_date), 0, 1)
+total.newICD <- total.newICD[!duplicated(total.newICD$eid), c("eid", "age", "sex", "birth_date", "death", "death_date", "mi", "mi_date", "icd10", "icd10_date", "prs", "sbp", "smoke", "bmi", "diabetes", "lipid_lowering", "tot_chol", "hdl_chol", "ldl_chol", "startfollowup", "endfollowup")]
+total.newICD <- total.newICD[!is.na(total.newICD$prs) & !is.na(total.newICD$sbp) & !is.na(total.newICD$smoke) & !is.na(total.newICD$bmi) & !is.na(total.newICD$diabetes) & !is.na(total.newICD$lipid_lowering) & !is.na(total.newICD$tot_chol) & !is.na(total.newICD$hdl_chol) & !is.na(total.newICD$ldl_chol),]
 # check association between PRS and MI for individuals with previous comorbidities
 mod_prs_comorb <- coxph(Surv(endfollowup - startfollowup,mi) ~ age + scale(prs) + sex + sbp + smoke + bmi + diabetes + lipid_lowering + tot_chol + hdl_chol + ldl_chol, data = total.newICD)
 cindex_prs_comorb <- survConcordance(Surv(endfollowup - startfollowup, mi) ~ predict(mod_prs_comorb), data = total.newICD)$concordance
