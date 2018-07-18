@@ -110,6 +110,22 @@ length(unique(total.new$icd10))
 length(unique(total.new[which(!is.na(total.new$mi_date)),]$eid))
 #_____ individuals with MI
 
+# exclude ICD10 codes that do not have dates
+total.new$icd10 <- ifelse(!is.na(total.new$icd10) & is.na(total.new$icd10_date), NA, total.new$icd10)
+if (length(which(!is.na(total.new$icd10) & is.na(total.new$icd10_date)) != 0)) {
+  print("ERROR: Exclude ICD10 codes that do not have dates.") 
+} else {
+  print("NO ERROR.")
+}
+nrow(total.new)
+#_____ rows
+length(unique(total.new$eid))
+#_____ individuals
+length(unique(total.new$icd10))
+#_____ ICD codes
+length(unique(total.new[which(!is.na(total.new$mi_date)),]$eid))
+#_____ individuals with MI
+
 # remove individuals with MI outside of timeframe 
 to_remove <- total.new$eid[total.new$mi_date > study.end | total.new$mi_date < total.new$startfollowup]
 to_remove <- unique(to_remove[!is.na(to_remove)])
@@ -256,7 +272,7 @@ for (i in 1:length(icd.all)) {
   # create final dataset
   findata <- rbind(dataF, otherdata)
   findata <- findata[findata$tstart < findata$tstop,]
-  findata <- findata[!is.na(findata$prs) & !is.na(findata$sbp) & !is.na(findata$smoke) & !is.na(findata$bmi) & !is.na(findata$diabetes) & !is.na(findata$lipid_lowering) & !is.na(total.newMOD$tot_chol) & !is.na(total.newMOD$hdl_chol) & !is.na(total.newMOD$ldl_chol),]
+  findata <- findata[!is.na(findata$prs) & !is.na(findata$sbp) & !is.na(findata$smoke) & !is.na(findata$bmi) & !is.na(findata$diabetes) & !is.na(findata$lipid_lowering) & !is.na(findata$tot_chol) & !is.na(findata$hdl_chol) & !is.na(findata$ldl_chol),]
 
   # base model
   mod <- tryCatch({ coxph(Surv(tstart, tstop, outP) ~ trt, data = findata) }, error = function(w) { NA })
@@ -338,12 +354,12 @@ resdf.new <- resdf[resdf$ICD10 %in% resdf$ICD10[resdf$logp_icd > -log10(0.05 / l
 icd.new <- resdf.new$ICD10
 # FIGURE 1A: plot association of MI and ICD10 codes (p-value)
 ggplot() +
-  geom_point(data = resdf.new, mapping = aes(x = ICD10, y = logp_risk_factor, size = hr_risk_factor, color = "Adjusted")) +
-  geom_text_repel(data = resdf.new, mapping = aes(x = ICD10, y = logp_risk_factor, label = resdf.new$ICD10label), size = 3, segment.alpha = 0.5) +
-  geom_point(data = resdf.new, mapping = aes(x = ICD10, y = logp_icd, size = hr_icd, color = "Unadjusted")) +
-  geom_text_repel(data = resdf.new, mapping = aes(x = ICD10, y = logp_icd, label = resdf.new$ICD10label), size = 3, segment.alpha = 0.5) +
+  geom_point(data = resdf, mapping = aes(x = ICD10, y = logp_risk_factor, size = hr_risk_factor, color = "Adjusted")) +
+  geom_text_repel(data = resdf, mapping = aes(x = ICD10, y = logp_risk_factor, label = resdf$ICD10label), size = 3, segment.alpha = 0.5) +
+  geom_point(data = resdf, mapping = aes(x = ICD10, y = logp_icd, size = hr_icd, color = "Unadjusted")) +
+  geom_text_repel(data = resdf, mapping = aes(x = ICD10, y = logp_icd, label = resdf$ICD10label), size = 3, segment.alpha = 0.5) +
   geom_hline(yintercept = -log10(0.05 / length(icd.all)), size = 1.5, color = "red") + 
-  annotate(geom = "text", x = 8.5, y = 3, label = "Significance Level", color = "red") +
+  annotate(geom = "text", x = length(icd.all)/2, y = 3, label = "Significance Level", color = "red") +
   theme(axis.ticks.x = element_blank(), axis.text.x = element_blank(), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black")) + 
   labs(x = "ICD10 Code", y = "-log10 Transformed P-Value") 
 # FIGURE 1B: plot predictive ability of ICD10 codes for MI (c-index)
@@ -471,7 +487,7 @@ total.newNA <- total.newNA[!is.na(total.newNA$prs) & !is.na(total.newNA$sbp) & !
 total.newICD <- total.new[total.new$eid %in% icd.ids,]
 total.newICD$mi <- ifelse(is.na(total.newICD$mi_date), 0, 1)
 total.newICD <- total.newICD[!duplicated(total.newICD$eid), c("eid", "age", "sex", "birth_date", "death", "death_date", "mi", "mi_date", "icd10", "icd10_date", "prs", "sbp", "smoke", "bmi", "diabetes", "lipid_lowering", "tot_chol", "hdl_chol", "ldl_chol", "startfollowup", "endfollowup")]
-total.newICD <- total.newICD[!is.na(total.newICD$prs) & !is.na(total.newICD$sbp) & !is.na(total.newICD$smoke) & !is.na(total.newICD$bmi) & !is.na(total.newICD$diabetes) & !is.na(total.newICD$lipid_lowering) & !is.na(total.newNA$tot_chol) & !is.na(total.newNA$hdl_chol) & !is.na(total.newNA$ldl_chol),]
+total.newICD <- total.newICD[!is.na(total.newICD$prs) & !is.na(total.newICD$sbp) & !is.na(total.newICD$smoke) & !is.na(total.newICD$bmi) & !is.na(total.newICD$diabetes) & !is.na(total.newICD$lipid_lowering) & !is.na(total.newICD$tot_chol) & !is.na(total.newICD$hdl_chol) & !is.na(total.newICD$ldl_chol),]
 # check association between PRS and MI for individuals with no previous comorbidities
 mod_prs_no_comorb <- coxph(Surv(endfollowup - startfollowup,mi) ~ age + scale(prs) + sex + sbp + smoke + bmi + diabetes + lipid_lowering + tot_chol + hdl_chol + ldl_chol, data = total.newNA)
 cindex_prs_no_comorb <- survConcordance(Surv(endfollowup - startfollowup, mi) ~ predict(mod_prs_no_comorb), data = total.newNA)$concordance
@@ -677,7 +693,8 @@ for (i in 1:nrow(pop.table)) {
   pop.table[i, "glabel"] <- glabel
   print(i)
 }
-pop.table$glabel <- ifelse(pop.table$label %in% c("I20", "R07", "J18", "J22", "R10", "top1", "top2", "top5", "top10"), pop.table[, "glabel"], "")
+# CHANGE: replace list with important ICD10 codes (e.g., ICD10 codes with large AUCs)
+pop.table$glabel <- ifelse(pop.table$label %in% c("I20", "I24", "R07", "top1", "top2", "top5", "top10"), pop.table[, "glabel"], "")
 
 # find sensitivities and specificities for PRS 
 roc.table <- cbind(roc(total.newSS$mi, total.newSS$prs)$sensitivities, roc(total.newSS$mi, total.newSS$prs)$specificities)
@@ -691,7 +708,7 @@ ggplot() +
   geom_point(data = pop.table, mapping = aes(fpr, sens, color = type), size = 3) +
   geom_label_repel(data = pop.table, aes(fpr, sens, label = glabel, fill = type), size = 3, segment.alpha = 0.5) +
   geom_abline(slope = 1, intercept = 0) +
-  annotate(geom = "text", x = 0.02, y = 0.20, label = paste("C-index: ", substr(as.character(as.numeric(roc(total.newSS$mi, total.newSS$prs)$auc)), 0, 5))) +
+  annotate(geom = "text", x = 0, y = 0, label = paste("C-index: ", substr(as.character(as.numeric(roc(total.newSS$mi, total.newSS$prs)$auc)), 0, 5))) +
   coord_cartesian(xlim = c(0, 0.25), ylim = c(0, 0.25)) + 
   theme(axis.ticks.x = element_blank(), axis.text.x = element_blank(), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black"), legend.position = "none") +
   labs(x = "False Positive Rate", y = "True Positive Rate")

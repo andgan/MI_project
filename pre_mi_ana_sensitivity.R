@@ -106,6 +106,22 @@ length(unique(total.new$icd10))
 length(unique(total.new[which(!is.na(total.new$mi_date)),]$eid))
 #18143 individuals with MI
 
+# exclude ICD10 codes that do not have dates
+total.new$icd10 <- ifelse(!is.na(total.new$icd10) & is.na(total.new$icd10_date), NA, total.new$icd10)
+if (length(which(!is.na(total.new$icd10) & is.na(total.new$icd10_date)) != 0)) {
+  print("ERROR: Exclude ICD10 codes that do not have dates.") 
+} else {
+  print("NO ERROR.")
+}
+nrow(total.new)
+#2684417 rows
+length(unique(total.new$eid))
+#502616 individuals
+length(unique(total.new$icd10))
+#1386 ICD codes
+length(unique(total.new[which(!is.na(total.new$mi_date)),]$eid))
+#18143 individuals with MI
+
 # remove individuals with MI outside of timeframe 
 to_remove <- total.new$eid[total.new$mi_date > study.end | total.new$mi_date < total.new$startfollowup]
 to_remove <- unique(to_remove[!is.na(to_remove)])
@@ -352,12 +368,12 @@ resdf.new <- resdf[resdf$ICD10 %in% resdf$ICD10[resdf$logp_icd > -log10(0.05 / l
 icd.new <- resdf.new$ICD10
 # FIGURE 1A: plot association of MI and ICD10 codes (p-value)
 ggplot() +
-  geom_point(data = resdf.new, mapping = aes(x = ICD10, y = logp_risk_factor, size = hr_risk_factor, color = "Adjusted")) +
-  geom_text_repel(data = resdf.new, mapping = aes(x = ICD10, y = logp_risk_factor, label = resdf.new$ICD10label), size = 3, segment.alpha = 0.5) +
-  geom_point(data = resdf.new, mapping = aes(x = ICD10, y = logp_icd, size = hr_icd, color = "Unadjusted")) +
-  geom_text_repel(data = resdf.new, mapping = aes(x = ICD10, y = logp_icd, label = resdf.new$ICD10label), size = 3, segment.alpha = 0.5) +
+  geom_point(data = resdf, mapping = aes(x = ICD10, y = logp_risk_factor, size = hr_risk_factor, color = "Adjusted")) +
+  geom_text_repel(data = resdf, mapping = aes(x = ICD10, y = logp_risk_factor, label = resdf$ICD10label), size = 3, segment.alpha = 0.5) +
+  geom_point(data = resdf, mapping = aes(x = ICD10, y = logp_icd, size = hr_icd, color = "Unadjusted")) +
+  geom_text_repel(data = resdf, mapping = aes(x = ICD10, y = logp_icd, label = resdf$ICD10label), size = 3, segment.alpha = 0.5) +
   geom_hline(yintercept = -log10(0.05 / length(icd.all)), size = 1.5, color = "red") + 
-  annotate(geom = "text", x = 8.5, y = 3, label = "Significance Level", color = "red") +
+  annotate(geom = "text", x = length(icd.all)/2, y = 3, label = "Significance Level", color = "red") +
   theme(axis.ticks.x = element_blank(), axis.text.x = element_blank(), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black")) + 
   labs(x = "ICD10 Code", y = "-log10 Transformed P-Value") 
 # FIGURE 1B: plot predictive ability of ICD10 codes for MI (c-index)
