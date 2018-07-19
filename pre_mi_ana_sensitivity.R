@@ -32,12 +32,12 @@ total = fread(file = paste0(path, 'hesin_registry_assess_cent_all_v2.csv'), sep 
 prs = fread(file = paste0(path, 'UKB_CardioCAD_PRS.txt'), sep = '\t', header = TRUE, stringsAsFactors = FALSE)
 total = data.frame(merge(total, prs, by.x = "eid", by.y = "s", all.x = TRUE))
 # Columns in data should follow following format:
-# eid            - boolean for ID
+# eid            - character for ID
 # age            - int/num for age
 # sex            - boolean for sex
-# birth_date     - date for day of birth
+# birth_date     - date for day of birth in formt YYYY-MM-DD (e.g., 1999-10-16)
 # death          - boolean for death
-# death_date     - date for day of death
+# death_date     - date for day of death in formt YYYY-MM-DD (e.g., 1999-10-16)
 # prs            - int/num for polygenic risk score
 # sbp            - int/num for systolic blood pressure
 # smoke          - boolean for smoking status
@@ -45,11 +45,11 @@ total = data.frame(merge(total, prs, by.x = "eid", by.y = "s", all.x = TRUE))
 # diabetes       - boolean for diabetes status
 # lipid_lowering - boolean for lipid-lowering medications
 # mi             - boolean for myocardial infarction
-# mi_date        - date for day of myocardial infarction
-# ac_date        - date for baseline
-# icd10          - chr for ICD10 event
-# icd10_date     - date for day of ICD10 event
-# Rows in data should be unique ICD10 codes for different individuals
+# mi_date        - date for day of FIRST myocardial infarction in formt YYYY-MM-DD (e.g., 1999-10-16)
+# ac_date        - date for baseline in formt YYYY-MM-DD (e.g., 1999-10-16)
+# icd10          - chr for ICD10 event in three character format (e.g., I20.1 and I20.2 will be I20)
+# icd10_date     - date for day of ICD10 event in formt YYYY-MM-DD (e.g., 1999-10-16)
+# Rows in data should be an ICD10 code for an individual (one individual can have multiple rows)
 total$eid <- as.character(total$eid)
 total$sex <- as.integer(total$sex)
 total$birth_date <- as.Date(total$birth_date, "%Y-%m-%d")
@@ -102,13 +102,13 @@ if (length(which(total.new$icd10 %in% to_remove == "TRUE")) != 0) {
   print("NO ERROR.")
 }
 nrow(total.new)
-#2684417 rows
+#_____ rows
 length(unique(total.new$eid))
-#502616 individuals
+#_____ individuals
 length(unique(total.new$icd10))
-#1386 ICD codes
+#_____ ICD codes
 length(unique(total.new[which(!is.na(total.new$mi_date)),]$eid))
-#18143 individuals with MI
+#_____ individuals with MI
 
 # exclude ICD10 codes that do not have dates
 total.new$icd10 <- ifelse(!is.na(total.new$icd10) & is.na(total.new$icd10_date), NA, total.new$icd10)
@@ -118,13 +118,13 @@ if (length(which(!is.na(total.new$icd10) & is.na(total.new$icd10_date)) != 0)) {
   print("NO ERROR.")
 }
 nrow(total.new)
-#2684417 rows
+#_____ rows
 length(unique(total.new$eid))
-#502616 individuals
+#_____ individuals
 length(unique(total.new$icd10))
-#1386 ICD codes
+#_____ ICD codes
 length(unique(total.new[which(!is.na(total.new$mi_date)),]$eid))
-#18143 individuals with MI
+#_____ individuals with MI
 
 # remove individuals with MI outside of timeframe 
 to_remove <- total.new$eid[total.new$mi_date > study.end | total.new$mi_date < total.new$startfollowup]
@@ -136,13 +136,13 @@ if (length(which(total.new$eid %in% to_remove == "TRUE")) != 0) {
   print("NO ERROR.")
 }
 nrow(total.new)
-#2515157 rows
+#_____ rows
 length(unique(total.new$eid))
-#490308 individuals
+#_____ individuals
 length(unique(total.new$icd10))
-#1382 ICD codes
+#_____ ICD codes
 length(unique(total.new[which(!is.na(total.new$mi_date)),]$eid))
-#5835 individuals with MI
+#_____ individuals with MI
 
 # ASSOCIATION ANALYSIS: keep ICD10 codes both before and after baseline
 total.new1 <- total.new
@@ -150,14 +150,17 @@ total.new1$icd10[total.new1$icd10_date > study.end | total.new1$icd10_date < stu
 total.new1$icd10_date[total.new1$icd10_date > study.end | total.new1$icd10_date < study.start] <- NA
 total.new1$icd10[(total.new1$mi_date - total.new1$icd10_date) < 8] <- NA
 total.new1$icd10_date[(total.new1$mi_date - total.new1$icd10_date) < 8] <- NA
+# remove duplicate rows or second diagnoses (e.g., for I20 diagnosis on 1999-10-16 and 2005-11-14, keep I20 diagnosis on 1999-10-16 and remove I20 diagnosis on 2005-11-14)
+total.new1 <- total.new1[order(total.new1$eid, total.new1$icd10, total.new1$icd10_date),]
+total.new1 <- total.new1[!duplicated(total.new1[, c("eid", "icd10")], fromLast = FALSE),]
 nrow(total.new1)
-#2515157 rows
+#_____ rows
 length(unique(total.new1$eid))
-#490308 individuals
+#_____ individuals
 length(unique(total.new1$icd10))
-#1375 ICD codes
+#_____ ICD codes
 length(unique(total.new1[which(!is.na(total.new1$mi_date)),]$eid))
-#5835 individuals with MI
+#_____ individuals with MI
 
 # SENSITIVITY ANALYSIS: remove ICD10 codes related to MI (I20 through I25)
 total.new2 <- total.new
@@ -170,32 +173,30 @@ if (length(which(total.new2$eid %in% to_remove == "TRUE")) != 0) {
   print("NO ERROR.")
 }
 nrow(total.new2)
-#2282556 rows
+#_____ rows
 length(unique(total.new2$eid))
-#470950 individuals 
+#_____ individuals 
 length(unique(total.new2$icd10))
-#1367 ICD codes
+#_____ ICD codes
 length(unique(total.new2[which(!is.na(total.new2$mi_date)),]$eid))
-#1018 individuals with MI 
+#_____ individuals with MI 
 
 # SENSITIVITY ANALYSIS: keep ICD10 codes only before baseline
 total.new2$icd10[total.new2$icd10_date > total.new2$startfollowup | total.new2$icd10_date < study.start] <- NA
 total.new2$icd10_date[total.new2$icd10_date > total.new2$startfollowup | total.new2$icd10_date < study.start] <- NA
 total.new2$icd10[(total.new2$mi_date - total.new2$icd10_date) < 8] <- NA
 total.new2$icd10_date[(total.new2$mi_date - total.new2$icd10_date) < 8] <- NA
+# remove duplicate rows or second diagnoses (e.g., for I20 diagnosis on 1999-10-16 and 2005-11-14, keep I20 diagnosis on 1999-10-16 and remove I20 diagnosis on 2005-11-14)
+total.new2 <- total.new2[order(total.new2$eid, total.new2$icd10, total.new2$icd10_date),]
+total.new2 <- total.new2[!duplicated(total.new2[, c("eid", "icd10")], fromLast = FALSE),]
 nrow(total.new2)
-#2282556 rows
+#_____ rows
 length(unique(total.new2$eid))
-#470950 individuals 
+#_____ individuals 
 length(unique(total.new2$icd10))
-#1304 ICD codes
+#_____ ICD codes
 length(unique(total.new2[which(!is.na(total.new2$mi_date)),]$eid))
-#1018 individuals with MI 
-
-
-
-
-
+#_____ individuals with MI 
 
 
 
@@ -223,8 +224,16 @@ total.newMOD <- total.newMOD[!is.na(total.newMOD$prs) & !is.na(total.newMOD$sbp)
 # survival analysis models and c-index for PRS
 mod_risk_factor <- coxph(Surv(endfollowup - startfollowup,mi) ~ age + sex + sbp + smoke + bmi + diabetes + lipid_lowering, data = total.newMOD)
 cindex_risk_factor <- survConcordance(Surv(endfollowup - startfollowup, mi) ~ predict(mod_risk_factor), data = total.newMOD)$concordance
+# c-index = 
+mod_prs <- coxph(Surv(endfollowup - startfollowup,mi) ~ scale(prs), data = total.newMOD)
+cindex_prs <- survConcordance(Surv(endfollowup - startfollowup, mi) ~ predict(mod_prs), data = total.newMOD)$concordance
+# c-index = 
+mod_prs_base <- coxph(Surv(endfollowup - startfollowup,mi) ~ age + scale(prs) + sex, data = total.newMOD)
+cindex_prs_base <- survConcordance(Surv(endfollowup - startfollowup, mi) ~ predict(mod_prs_base), data = total.newMOD)$concordance
+# c-index = 
 mod_prs_risk_factor <- coxph(Surv(endfollowup - startfollowup, mi) ~ age + scale(prs) + sex + sbp + smoke + bmi + diabetes + lipid_lowering, data = total.newMOD)
 cindex_prs_risk_factor <- survConcordance(Surv(endfollowup - startfollowup, mi) ~ predict(mod_prs_risk_factor), data = total.newMOD)$concordance
+# c-index = 
 
 ##################################################
 # Survival analysis for ICD10 codes
@@ -310,7 +319,12 @@ for (i in 1:length(icd.all)) {
   cindex_interaction_risk_factor <- survConcordance(Surv(tstart, tstop, outP) ~ predict(mod5), data = findata)$concordance
 
   res <- rbind(res, c(coef(summary(mod))["trt", c("coef", "z")], coef(summary(mod1))["trt", c("coef", "z")], coef(summary(mod2))["trt", c("coef", "z")], coef(summary(mod3))["trt:prs", c("coef", "z")], coef(summary(mod4))["trt:prs", c("coef", "z")], coef(summary(mod5))["trt:prs", c("coef", "z")], 
-    mean_day_dist, sd_day_dist, cindex_icd_base, cindex_icd, cindex_icd_risk_factor, cindex_interaction_base, cindex_interaction, cindex_interaction_risk_factor))
+    mean_day_dist, sd_day_dist, cindex_icd_base, cindex_icd, cindex_icd_risk_factor, cindex_interaction_base, cindex_interaction, cindex_interaction_risk_factor,
+    length(unique(findata$eid[which(findata$pred == 1 & findata$mi == 1)])),
+    length(unique(findata$eid[which(findata$pred == 0 & findata$mi == 1)])),
+    length(unique(findata$eid[which(findata$pred == 1 & findata$mi == 0)])),
+    length(unique(findata$eid[which(findata$pred == 0 & findata$mi == 0)]))
+    ))
 
   print(i)
 
@@ -320,14 +334,10 @@ resdf = as.data.frame(res)
 resdf = cbind(icd10 = icd.all, resdf)
 rownames(resdf) <- 1:nrow(resdf)
 colnames(resdf) <- c("ICD10", "beta_base", "z_base", "beta_icd", "z_icd", "beta_risk_factor", "z_risk_factor", "beta_interaction_base", "z_interaction_base", "beta_interaction", "z_interaction", "beta_interaction_risk_factor", "z_interaction_risk_factor", 
-  "mean_day_dist", "sd_day_dist", "cindex_icd_base", "cindex_icd", "cindex_icd_risk_factor", "cindex_interaction_base", "cindex_interaction", "cindex_interaction_risk_factor")
+  "mean_day_dist", "sd_day_dist", "cindex_icd_base", "cindex_icd", "cindex_icd_risk_factor", "cindex_interaction_base", "cindex_interaction", "cindex_interaction_risk_factor",
+  "icd_mi", "noicd_mi", "icd_nomi", "noicd_nomi")
 write.table(resdf, file = paste0(path, 'association_analysis.tsv'), sep = "\t", row.names = FALSE, col.names = TRUE, quote=F)
 write.table(resdf, file = paste0(path, 'sensitivity_analysis.tsv'), sep = "\t", row.names = FALSE, col.names = TRUE, quote=F)
-
-
-
-
-
 
 
 
@@ -368,7 +378,7 @@ resdf$hr_icd <- exp(resdf$beta_icd)
 resdf$hr_risk_factor <- exp(resdf$beta_risk_factor)
 resdf$ICD10label <- resdf$ICD10
 resdf$ICD10label[resdf$logp_icd < -log10(0.05 / length(icd.all))] <- ""
-resdf.new <- resdf[resdf$ICD10 %in% resdf$ICD10[resdf$logp_icd > -log10(0.05 / length(icd.all)) | resdf$logp_risk_factor > -log10(0.05 / length(icd.all))],]
+resdf.new <- resdf[resdf$ICD10 %in% resdf$ICD10[-log10(2*pnorm(-abs(resdf$z_icd))) > -log10(0.05 / length(icd.all))],]
 icd.new <- resdf.new$ICD10
 # FIGURE 1A: plot association of MI and ICD10 codes (p-value)
 ggplot() +
@@ -411,27 +421,21 @@ ggplot(data = resdf.new, mapping = aes(ICD10, logp_interaction_base)) +
 
 
 
-
-
-
-
-
 ##################################################
 # Analysis of interaction for population subsets of ICD10 codes
 ##################################################
 
 # calculate and plot c-index for population subsets (e.g., individuals with only I20) using model of PRS
 sub.pop.table <- NULL
-main.icd <- c("E10", "E11", "F10", "G47")
-for (i in 1:length(main.icd)) {
+for (i in 1:length(icd.all)) {
 
   # create list of individuals with specific ICD10 code
-  ids <- unique(total.new$eid[total.new$icd10 == main.icd[i]])
+  ids <- unique(total.new$eid[total.new$icd10 == icd.all[i]])
 
   # create dataset of individuals with specific ICD10 code
   total.newI <- total.new[total.new$eid %in% ids,]
   total.newI$mi <- ifelse(is.na(total.newI$mi_date), 0, 1)
-  total.newI <- total.newI[which(total.newI$icd10 == main.icd[i]), c("eid", "sex", "age", "death", "death_date", "mi", "mi_date", "icd10", "icd10_date", "prs", "sbp", "smoke", "bmi", "diabetes", "lipid_lowering", "startfollowup", "endfollowup")]
+  total.newI <- total.newI[which(total.newI$icd10 == icd.all[i]), c("eid", "sex", "age", "death", "death_date", "mi", "mi_date", "icd10", "icd10_date", "prs", "sbp", "smoke", "bmi", "diabetes", "lipid_lowering", "startfollowup", "endfollowup")]
   total.newI <- total.newI[!duplicated(total.newI$eid),]
   # survival analysis of individuals with specific ICD10 code
   mod_prs_i <- coxph(Surv(endfollowup - startfollowup,mi) ~ age + scale(prs) + sex + sbp + smoke + bmi + diabetes + lipid_lowering, data = total.newI)
@@ -450,7 +454,7 @@ for (i in 1:length(main.icd)) {
   hr_ni_min <- exp(coef(summary(mod_prs_ni))["scale(prs)", "coef"] - 1.96*coef(summary(mod_prs_ni))["scale(prs)", "se(coef)"])
   hr_ni_max <- exp(coef(summary(mod_prs_ni))["scale(prs)", "coef"] + 1.96*coef(summary(mod_prs_ni))["scale(prs)", "se(coef)"])
 
-  numb <- rbind(cbind(main.icd[i], hr_i, hr_i_min, hr_i_max), cbind(paste("No", main.icd[i]), hr_ni, hr_ni_min, hr_ni_max))
+  numb <- rbind(cbind(icd.all[i], hr_i, hr_i_min, hr_i_max), cbind(paste("No", icd.all[i]), hr_ni, hr_ni_min, hr_ni_max))
   sub.pop.table <- rbind(sub.pop.table, numb)
   print(i)
 }
@@ -468,11 +472,6 @@ ggplot(data = sub.pop.table, mapping = aes(group, hr)) +
   geom_errorbar(aes(ymin = hrmin, ymax = hrmax), width = 0.2, position = position_dodge(1)) + 
   theme(axis.ticks.x = element_blank(), axis.text.x = element_text(angle = 90, hjust = 1), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black")) +
   labs(x = "Group", y = "Hazard Ratio")
-
-
-
-
-
 
 
 
@@ -521,7 +520,7 @@ mod_prs_comorb_base <- coxph(Surv(endfollowup - startfollowup,mi) ~ age + sex + 
 cindex_prs_comorb_base <- survConcordance(Surv(endfollowup - startfollowup, mi) ~ predict(mod_prs_comorb_base), data = total.newICD)$concordance
 err_prs_comorb_base <- as.numeric(survConcordance(Surv(endfollowup - startfollowup, mi) ~ predict(mod_prs_comorb_base), data = total.newICD)$std.err)
 comorb <- cbind(group = "All", cindex = cindex_prs_comorb, error = err_prs_comorb, cindex.base = cindex_prs_comorb_base, error.base = err_prs_comorb_base)
-# FIGURE 3: plot predictive ability of PRS in population with previous comorbidities and population with no previous comorbidities (c-index)
+# finalize data frame
 cindex.comorb.nocomorb <- rbind(no_comorb, comorb)
 cindex.comorb.nocomorb <- data.frame(cindex.comorb.nocomorb)
 cindex.comorb.nocomorb$cindex <- as.numeric(as.character(cindex.comorb.nocomorb$cindex))
@@ -536,11 +535,6 @@ ggplot(data = cindex.comorb.nocomorb, mapping = aes(group, diff)) +
   geom_errorbar(aes(ymin = diff - diff.error, ymax = diff + diff.error), width = 0.2, position = position_dodge(1)) + 
   xlab("Group") + ylab("Difference in C-index Compared to Baseline") + 
   theme(axis.ticks.x = element_blank(), axis.text.x = element_text(angle = 90, hjust = 1), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black"))
-
-
-
-
-
 
 
 
@@ -637,17 +631,12 @@ ggplot(data = cindex.dich.prs, mapping = aes(group, hr)) +
 
 
 
-
-
-
-
-
 ##################################################
 # ROC analysis of PRS with ICD10 codes and dichotomous PRS
 ##################################################
 
 # create dataset for ROC analysis
-total.newSS <- total.new[which(total.new$icd10 %in% resdf.new$ICD10), c("eid", "icd10", "mi", "prs")]
+total.newSS <- total.new[which(total.new$icd10 %in% icd.new), c("eid", "icd10", "mi", "prs")]
 # create dichotomous variable for ICD10 codes (e.g., 1 = individual has I20 and 0 = individual does not have I20)
 for (i in 1:length(icd.new)) {
   temp_ids <- total.newSS$eid[total.newSS$icd10 == icd.new[i]]

@@ -1,4 +1,4 @@
-# make fake data
+# make toy data
 n = 1000000
 total <- NULL
 eid <- c(1:n)
@@ -11,8 +11,7 @@ diabetes <- sample(0:1, n, replace = TRUE)
 lipid_lowering <- sample(0:1, n, replace = TRUE)
 tot_chol <- rnorm(n, 200, 10)
 hdl_chol <- rnorm(n, 60, 10)
-ldl_chol <- rnorm(n, 115, 10)
-total <- data.frame(eid, sex, prs, sbp, smoke, bmi, diabetes, lipid_lowering, tot_chol, hdl_chol, ldl_chol)
+total <- data.frame(eid, sex, prs, sbp, smoke, bmi, diabetes, lipid_lowering, tot_chol, hdl_chol)
 
 total$birth_date <- sample(seq(as.Date('1950/01/01'), as.Date('1999/10/16'), by = "day"), n, replace = TRUE)
 total$ac_date <- sample(seq(as.Date('1995/10/16'), as.Date('2005/11/14'), by = "day"), n, replace = TRUE)
@@ -29,5 +28,3 @@ total <- total[rep(row.names(total), total$freq), ]
 total$icd10 <- sample(toupper(c(letters[1:26], NA)), nrow(total), replace = TRUE)
 total$icd10_date <- as.Date(sample(seq(as.Date('1972/11/12'), as.Date('2010/11/12'), by = "day"), nrow(total), replace = TRUE))
 total$icd10_date[which(is.na(total$icd10))] <- NA
-
-
